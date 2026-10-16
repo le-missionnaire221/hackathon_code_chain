@@ -1,0 +1,29 @@
+﻿# Secrets & Environment variables
+.env
+*.env
+**/.env
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Temporary & scratch files
+scratch/
+**/scratch/
+*.tmp
+*.log
+
+# Flutter / Dart
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+
+# IDE & OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
