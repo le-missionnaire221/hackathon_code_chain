@@ -1,49 +1,55 @@
-import crypto from 'node:crypto';
-import 'dotenv/config'; // Charge automatiquement le fichier .env
-import dns from 'node:dns';
-
-dns.setDefaultResultOrder('ipv4first');
+﻿import crypto from 'node:crypto';
+import https from 'node:https';
+import 'dotenv/config';
 
 const { BITNOB_CLIENT_ID: ID, BITNOB_CLIENT_SECRET: SECRET } = process.env;
 
-// Chez Bitnob, la Sandbox et la Prod utilisent la même adresse URL ! 
-// C'est ta clé (qui commence par prd:sandbox_) qui indique que tu es en mode test.
-const BASE = 'https://api.bitnob.com';
+export function bitnob(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : '';
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const nonce = crypto.randomBytes(16).toString('hex');
 
-export async function bitnob(method, path, body) {
-  const payload = body ? JSON.stringify(body) : '';
+    const signature = crypto
+      .createHmac('sha256', String(SECRET))
+      .update(`${ID}:${ts}:${nonce}:${payload}`)
+      .digest('hex');
 
-  // 1. Le timestamp (l'heure exacte)
-  const ts = Math.floor(Date.now() / 1000).toString();
+    const options = {
+      hostname: 'api.bitnob.com',
+      port: 443,
+      path: path,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Client': String(ID),
+        'X-Auth-Timestamp': ts,
+        'X-Auth-Nonce': nonce,
+        'X-Auth-Signature': signature,
+        ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
+      }
+    };
 
-  // 2. Le nonce (la valeur unique pour éviter les doublons)
-  const nonce = crypto.randomBytes(16).toString('hex');
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed);
+        } catch (e) {
+          resolve(data);
+        }
+      });
+    });
 
-  // 3. La signature HMAC-SHA256 (Le coffre-fort mathématique)
-  // On utilise le SECRET pour signer, mais on ne l'envoie JAMAIS.
-  const signature = crypto
-    .createHmac('sha256', String(SECRET))
-    .update(`${ID}:${ts}:${nonce}:${payload}`)
-    .digest('hex');
+    req.on('error', (err) => {
+      reject(err);
+    });
 
-  // 4. L'envoi de la requête avec les headers de sécurité
-  const res = await fetch(BASE + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Auth-Client': String(ID),
-      'X-Auth-Timestamp': ts,
-      'X-Auth-Nonce': nonce,
-      'X-Auth-Signature': signature,
-    },
-    body: payload || undefined,
+    if (payload) {
+      req.write(payload);
+    }
+    req.end();
   });
-
-  return res.json();
-}
-
-// Petit test si on exécute ce fichier directement :
-if (process.argv[1]?.endsWith('bitnob.js')) {
-    console.log("Test de connexion à l'API Bitnob...");
-    bitnob('GET', '/api/whoami').then(console.log).catch(console.error);
 }

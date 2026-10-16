@@ -1,7 +1,8 @@
-import 'dart:async';
+Ôªøimport 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -20,8 +21,8 @@ class CodeChainApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0B0E14),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFF7931A), // Bitcoin / Lightning Gold
-          secondary: Color(0xFF10B981), // Emerald Green Success
+          primary: Color(0xFFF7931A), // Bitcoin Gold
+          secondary: Color(0xFF10B981), // Emerald Green
           surface: Color(0xFF161B26),
         ),
         appBarTheme: const AppBarTheme(
@@ -43,15 +44,15 @@ class LightningPaymentScreen extends StatefulWidget {
 }
 
 class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
-  // Config URL du Backend (10.0.2.2 pour Èmulateur Android, localhost pour Web/Windows, ou IP locale pour vrai tÈlÈphone)
-  String backendUrl = 'http://10.0.2.2:3000';
+  String backendUrl = kIsWeb ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
   final TextEditingController _urlController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController(text: '1000');
-  final TextEditingController _descController = TextEditingController(text: 'Paiement DÈmo Hackathon');
+  final TextEditingController _amountController = TextEditingController(text: '100');
+  final TextEditingController _descController = TextEditingController(text: 'Paiement D√©mo Hackathon');
 
   bool _isLoading = false;
   String? _bolt11Invoice;
   String? _invoiceReference;
+  String? _preimage;
   bool _isPaid = false;
   Timer? _statusTimer;
 
@@ -70,7 +71,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
     super.dispose();
   }
 
-  // 1. CrÈer l'invoice Lightning via notre Backend Node.js
+  // 1. Cr√©er l'invoice Lightning via notre Backend Node.js
   Future<void> _createInvoice() async {
     final amount = int.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
@@ -83,6 +84,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
       _isPaid = false;
       _bolt11Invoice = null;
       _invoiceReference = null;
+      _preimage = null;
     });
 
     try {
@@ -95,8 +97,9 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
         }),
       ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && (data['data']?['request'] != null || data['request'] != null)) {
         final bolt11 = data['data']?['request'] ?? data['request'];
         final ref = data['reference'] ?? data['data']?['reference'];
 
@@ -106,12 +109,12 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
           _isLoading = false;
         });
 
-        // DÈmarrer le polling du statut de paiement
         if (ref != null) {
           _startStatusPolling(ref);
         }
       } else {
-        throw Exception('Erreur serveur: ${response.statusCode}');
+        final errMsg = data['error'] ?? data['detail'] ?? data['message'] ?? 'Erreur serveur: ${response.statusCode}';
+        throw Exception(errMsg);
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -119,7 +122,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
     }
   }
 
-  // 2. VÈrifier pÈriodiquement si l'invoice a ÈtÈ payÈe (Webhook reÁu)
+  // 2. V√©rifier en temps r√©el le r√®glement de la facture par Bitnob
   void _startStatusPolling(String reference) {
     _statusTimer?.cancel();
     _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
@@ -131,14 +134,13 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
             timer.cancel();
             setState(() {
               _isPaid = true;
+              _preimage = data['preimage'];
             });
             HapticFeedback.heavyImpact();
-            _showSnackbar('?? Paiement Lightning reÁu avec succËs !', Colors.green);
+            _showSnackbar('üéâ Paiement Lightning confirm√© avec succ√®s !', const Color(0xFF10B981));
           }
         }
-      } catch (_) {
-        // En cas d'erreur rÈseau temporaire, on rÈessaie au tour suivant
-      }
+      } catch (_) {}
     });
   }
 
@@ -170,16 +172,9 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
             TextField(
               controller: _urlController,
               decoration: const InputDecoration(
-                hintText: 'ex: http://10.0.2.2:3000 ou http://192.168.1.X:3000',
+                hintText: 'ex: http://localhost:5000 ou http://10.0.2.2:5000',
                 border: OutlineInputBorder(),
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'ï …mulateur Android: http://10.0.2.2:3000\n'
-              'ï Web / Desktop: http://localhost:3000\n'
-              'ï TÈlÈphone rÈel: http://<IP_PC>:3000 ou Tunnel URL',
-              style: TextStyle(fontSize: 11, color: Colors.white70),
             ),
           ],
         ),
@@ -195,7 +190,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
                 backendUrl = _urlController.text.trim();
               });
               Navigator.pop(ctx);
-              _showSnackbar('URL mise ‡ jour : $backendUrl', Colors.orange);
+              _showSnackbar('URL mise √† jour : $backendUrl', Colors.orange);
             },
             child: const Text('Sauvegarder'),
           ),
@@ -229,7 +224,6 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Bandeau d'Ètat
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
@@ -262,13 +256,10 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
             const SizedBox(height: 24),
 
             if (_isPaid) ...[
-              // …cran de SuccËs
               _buildSuccessCard(),
             ] else if (_bolt11Invoice != null) ...[
-              // …cran avec QR Code et attente
               _buildInvoiceCard(),
             ] else ...[
-              // Formulaire de saisie du montant
               _buildFormCard(),
             ],
           ],
@@ -289,7 +280,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'CrÈer un Paiement Lightning',
+            'Cr√©er un Paiement Lightning',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -300,7 +291,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
             keyboardType: TextInputType.number,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFF7931A)),
             decoration: InputDecoration(
-              suffixText: 'SATS ?',
+              suffixText: 'SATS ‚ö°',
               suffixStyle: const TextStyle(color: Color(0xFFF7931A), fontWeight: FontWeight.bold),
               filled: true,
               fillColor: const Color(0xFF0B0E14),
@@ -308,7 +299,6 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Boutons rapides de montants
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [100, 500, 1000, 2100].map((sats) {
@@ -350,7 +340,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
               child: _isLoading
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black))
                   : const Text(
-                      'G…N…RER LE QR CODE ?',
+                      'G√âN√âRER LE QR CODE ‚ö°',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                     ),
             ),
@@ -383,7 +373,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
                   color: const Color(0x33FFA500),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text('En attente ?', style: TextStyle(color: Colors.orange, fontSize: 12)),
+                child: const Text('En attente ‚è≥', style: TextStyle(color: Colors.orange, fontSize: 12)),
               ),
             ],
           ),
@@ -406,7 +396,6 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Bouton Copier
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFFF7931A)),
@@ -416,18 +405,17 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
             label: const Text('Copier l\'Invoice Lightning (BOLT11)', style: TextStyle(color: Color(0xFFF7931A))),
             onPressed: () {
               Clipboard.setData(ClipboardData(text: _bolt11Invoice!));
-              _showSnackbar('Invoice copiÈe dans le presse-papier !', Colors.orange);
+              _showSnackbar('Invoice copi√©e dans le presse-papier !', Colors.orange);
             },
           ),
           const SizedBox(height: 16),
 
-          // Indicateur de statut
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
               SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange)),
               SizedBox(width: 10),
-              Text('…coute du paiement en direct via Webhook...', style: TextStyle(fontSize: 12, color: Colors.white70)),
+              Text('R√®glement sur le r√©seau Lightning en cours...', style: TextStyle(fontSize: 12, color: Colors.white70)),
             ],
           ),
           const SizedBox(height: 16),
@@ -438,6 +426,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
               setState(() {
                 _bolt11Invoice = null;
                 _invoiceReference = null;
+                _preimage = null;
               });
             },
             child: const Text('Annuler et revenir', style: TextStyle(color: Colors.grey)),
@@ -468,18 +457,40 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Paiement ReÁu !',
+            'Paiement Re√ßu !',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 8),
           Text(
-            '${_amountController.text} Satoshis confirmÈs sur Lightning Network ?',
+            '${_amountController.text} Satoshis confirm√©s sur Lightning Network ‚ö°',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 14, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
+          if (_preimage != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B0E14),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Preimage (Preuve de r√®glement Lightning) :', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  SelectableText(
+                    _preimage!,
+                    style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: Color(0xFFF7931A)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Text(
-            'RÈfÈrence : $_invoiceReference',
+            'R√©f√©rence : $_invoiceReference',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 28),
@@ -496,6 +507,7 @@ class _LightningPaymentScreenState extends State<LightningPaymentScreen> {
                   _bolt11Invoice = null;
                   _invoiceReference = null;
                   _isPaid = false;
+                  _preimage = null;
                 });
               },
               child: const Text('NOUVEAU PAIEMENT', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
