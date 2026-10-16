@@ -3,19 +3,19 @@ import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
 import crypto from 'node:crypto';
 
-// Force Node.js à utiliser IPv4 (corrige les problèmes de timeout sous Windows avec certaines box)
+// Forcer IPv4 pour la connectivité réseau sous Windows
 dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// 1. Parser JSON et copie brute (rawBody) pour la vérification HMAC des webhooks
+// Parser JSON et conservation du corps brut pour vérification HMAC
 app.use(express.json({
   type: (req) => (req.headers['content-type'] || '').includes('json'),
   verify: (req, res, buf) => { req.rawBody = buf.toString(); }
 }));
 
-// Configuration CORS pour permettre à l'application Flutter de communiquer avec l'API
+// Configuration CORS pour Flutter (Web et Mobile)
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -24,12 +24,66 @@ app.use((req, res, next) => {
   next();
 });
 
-// Suivi en mémoire des factures
+// Suivi local des factures et preimages
 const invoices = new Map();
 
-// Route de santé
+// === ROUTE DE SANTÉ (HEALTHCHECK RÉEL) ===
 app.get('/health', (req, res) => {
-  res.send('OK');
+  res.json({
+    status: 'OK',
+    server: 'Express Node.js',
+    port: port,
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// === ROUTE WALLET & TRANSACTIONS 100% RÉELLES DEPUIS BITNOB ===
+app.get('/wallet', async (req, res) => {
+  try {
+    const bitnobRes = await bitnob('GET', '/api/lightning/invoices');
+    const rawInvoices = bitnobRes.data?.invoices || [];
+
+    let totalPaidSats = 0;
+    const transactions = rawInvoices.map((inv) => {
+      const isPaid = inv.status === 'paid';
+      const sats = Number(inv.amount_sat || 0);
+      if (isPaid) {
+        totalPaidSats += sats;
+      }
+
+      // Récupérer la preimage enregistrée en mémoire si disponible
+      const localInvoice = invoices.get(inv.reference);
+      const preimage = inv.preimage || localInvoice?.preimage || null;
+
+      return {
+        id: inv.id,
+        reference: inv.reference || 'N/A',
+        title: inv.description || 'Paiement Lightning',
+        category: 'Encaissement Marchand POS',
+        amountSats: sats,
+        amountFcfa: Math.round(sats * 0.65),
+        isCredit: true,
+        date: inv.created_at || new Date().toISOString(),
+        status: isPaid ? 'Confirmé ⚡' : (inv.status === 'expired' ? 'Expiré' : 'En attente'),
+        preimage: preimage,
+        request: inv.request
+      };
+    });
+
+    res.json({
+      success: true,
+      balanceSats: totalPaidSats,
+      balanceFcfa: Math.round(totalPaidSats * 0.65),
+      btcPriceFcfa: 64850000,
+      totalInvoices: rawInvoices.length,
+      paidInvoicesCount: rawInvoices.filter(i => i.status === 'paid').length,
+      transactions: transactions
+    });
+  } catch (err) {
+    console.error('Erreur /wallet:', err);
+    res.status(500).json({ error: 'Impossible de récupérer les données réelles de Bitnob' });
+  }
 });
 
 // === CRÉATION D'UN CLIENT ===
@@ -58,7 +112,7 @@ app.post('/invoice', async (req, res) => {
   try {
     const reference = 'LTG_' + Date.now();
     
-    // Endpoint officiel Bitnob Lightning (avec auto_settle pour le règlement Sandbox)
+    // Appel officiel à l'API Bitnob Lightning
     const invoiceResponse = await bitnob('POST', '/api/lightning/invoices', {
       customer_id: customerId,
       amount: Number(amount),
@@ -82,8 +136,8 @@ app.post('/invoice', async (req, res) => {
     invoices.set(reference, {
       reference,
       bitnobId,
-      amount,
-      description,
+      amount: Number(amount),
+      description: description || 'Paiement Lightning',
       status: 'pending',
       createdAt: new Date().toISOString()
     });
@@ -103,7 +157,7 @@ app.get('/invoice/:reference/status', async (req, res) => {
     return res.status(404).json({ error: "Invoice non trouvée" });
   }
 
-  // Si pas encore payée, on interroge Bitnob pour vérifier si la facture a été réglée
+  // Si pas encore payée, on interroge Bitnob pour vérifier le règlement
   if (invoice.status !== 'paid' && invoice.bitnobId) {
     try {
       const bitnobCheck = await bitnob('GET', `/api/lightning/invoices/${invoice.bitnobId}`);
@@ -124,10 +178,6 @@ app.get('/invoice/:reference/status', async (req, res) => {
 
 // === RÉCEPTION DES WEBHOOKS DE BITNOB ===
 app.post('/webhook', (req, res) => {
-  console.log('\n📨 Appel reçu sur /webhook');
-  console.log('Headers :', req.headers);
-  console.log('Body    :', req.rawBody);
-
   const bitnobSignature =
     req.headers['x-signature'] ||
     req.headers['x-bitnob-signature'] ||
@@ -135,7 +185,6 @@ app.post('/webhook', (req, res) => {
   const webhookSecret = process.env.BITNOB_WEBHOOK_SECRET;
 
   if (!bitnobSignature) {
-    console.log('⚠️ Webhook ignoré : aucune signature');
     return res.status(400).send('Signature manquante');
   }
 
@@ -148,17 +197,12 @@ app.post('/webhook', (req, res) => {
   const a = Buffer.from(mySignature);
   const b = Buffer.from(bitnobSignature);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    console.log('🛑 ALERTE : Signature invalide !');
     return res.status(401).send('Signature invalide');
   }
 
-  console.log('\n🔔 Vrai Webhook reçu de Bitnob !');
   const eventName = req.body.event || (req.body.test ? 'test' : 'inconnu');
-  console.log(`Événement : ${eventName}`);
-  
   if (eventName === 'lightning.invoice.paid') {
     const ref = req.body.data?.reference;
-    console.log(`✅ Webhook: L'invoice ${ref} a été payée !`);
     if (ref && invoices.has(ref)) {
       const current = invoices.get(ref);
       invoices.set(ref, {
