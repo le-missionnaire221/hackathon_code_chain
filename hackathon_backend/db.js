@@ -6,7 +6,6 @@ import crypto from 'node:crypto';
 const { Pool } = pg;
 
 export const SAT_TO_FCFA = 0.65;
-export const SANDBOX_START_SATS = 20000;
 
 function connectionString() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -148,22 +147,22 @@ export async function initDb() {
     console.log(`👑 Compte admin prêt : +${phone}`);
   }
 
-  const granted = await pool.query(
-    `UPDATE wallets w
-     SET balance_sats = $1, updated_at = now()
-     WHERE w.balance_sats = 0
-       AND NOT EXISTS (
-         SELECT 1 FROM ledger l WHERE l.user_id = w.user_id AND l.kind = 'sandbox_grant'
-       )
-     RETURNING w.user_id`,
-    [SANDBOX_START_SATS]
+  const grants = await pool.query(
+    `SELECT user_id, SUM(amount_sats)::bigint AS amount
+     FROM ledger
+     WHERE kind = 'sandbox_grant'
+     GROUP BY user_id`
   );
-  for (const row of granted.rows) {
+  for (const row of grants.rows) {
     await pool.query(
-      `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
-       VALUES ($1, $2, 'sandbox_grant', 'SANDBOX', 'Solde sandbox initial')`,
-      [row.user_id, SANDBOX_START_SATS]
+      `UPDATE wallets
+       SET balance_sats = GREATEST(0, balance_sats - $2), updated_at = now()
+       WHERE user_id = $1`,
+      [row.user_id, row.amount]
     );
+  }
+  if (grants.rowCount) {
+    await pool.query(`DELETE FROM ledger WHERE kind = 'sandbox_grant'`);
   }
 }
 
@@ -189,15 +188,7 @@ export async function createUser({ phone, password, fullName }) {
        RETURNING id`,
       [normalized, hash, String(fullName || '').trim()]
     );
-    await client.query(
-      'INSERT INTO wallets (user_id, balance_sats) VALUES ($1, $2)',
-      [inserted.rows[0].id, SANDBOX_START_SATS]
-    );
-    await client.query(
-      `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
-       VALUES ($1, $2, 'sandbox_grant', 'SANDBOX', 'Solde sandbox initial')`,
-      [inserted.rows[0].id, SANDBOX_START_SATS]
-    );
+    await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [inserted.rows[0].id]);
     await client.query('COMMIT');
     return findUserById(inserted.rows[0].id);
   } catch (error) {
