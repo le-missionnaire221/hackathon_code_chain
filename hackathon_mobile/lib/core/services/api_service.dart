@@ -27,9 +27,57 @@ class WalletResponse {
 }
 
 class ApiService {
+  static String? token;
+  static void Function()? onUnauthorized;
+
+  static Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (token != null && token!.isNotEmpty) 'Authorization': 'Bearer $token',
+      };
+
+  static void _guard(http.Response res) {
+    if (res.statusCode == 401) onUnauthorized?.call();
+  }
+
+  static Future<Map<String, dynamic>?> login(
+    String backendUrl, {
+    required String phone,
+    required String password,
+  }) {
+    return _postAuth('$backendUrl/auth/login', {'phone': phone, 'password': password});
+  }
+
+  static Future<Map<String, dynamic>?> register(
+    String backendUrl, {
+    required String phone,
+    required String password,
+    required String fullName,
+  }) {
+    return _postAuth('$backendUrl/auth/register', {
+      'phone': phone,
+      'password': password,
+      'fullName': fullName,
+    });
+  }
+
+  static Future<Map<String, dynamic>?> _postAuth(String url, Map<String, dynamic> body) async {
+    try {
+      final res = await http.post(
+        Uri.parse(url),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+    } catch (_) {}
+    return null;
+  }
+
   static Future<WalletResponse?> getWalletData(String backendUrl) async {
     try {
-      final res = await http.get(Uri.parse('$backendUrl/wallet'));
+      final res = await http.get(Uri.parse('$backendUrl/wallet'), headers: _headers);
+      _guard(res);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true) {
@@ -63,17 +111,21 @@ class ApiService {
     try {
       final res = await http.post(
         Uri.parse('$backendUrl/invoice'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({
           'amount': amount,
           'description': description.trim().isEmpty ? 'Paiement Démo' : description.trim(),
           'isEscrow': isEscrow,
         }),
       );
-      return jsonDecode(res.body);
+      _guard(res);
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
     } catch (_) {
       return null;
     }
+    return null;
   }
 
   static Future<Map<String, dynamic>?> getInvoiceStatus(
@@ -81,7 +133,10 @@ class ApiService {
     String reference,
   ) async {
     try {
-      final res = await http.get(Uri.parse('$backendUrl/invoice/$reference/status'));
+      final res = await http.get(
+        Uri.parse('$backendUrl/invoice/$reference/status'),
+        headers: _headers,
+      );
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -97,13 +152,17 @@ class ApiService {
     try {
       final res = await http.post(
         Uri.parse('$backendUrl/invoice/$reference/release'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({'code': code}),
       );
-      return jsonDecode(res.body);
+      _guard(res);
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
     } catch (_) {
       return null;
     }
+    return null;
   }
 
   static Future<Map<String, dynamic>?> payInvoice(

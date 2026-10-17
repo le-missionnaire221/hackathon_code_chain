@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
+import '../core/services/session.dart';
 import '../core/utils/formatters.dart';
 import '../models/transaction_item.dart';
 import 'wallet_tab.dart';
@@ -11,7 +12,9 @@ import 'history_tab.dart';
 import 'settings_tab.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final Future<void> Function() onLogout;
+
+  const MainNavigationScreen({super.key, required this.onLogout});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -19,7 +22,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-  String backendUrl = AppConstants.initialBackendUrl;
+  String backendUrl = Session.backendUrl ?? AppConstants.initialBackendUrl;
 
   bool _isBalanceVisible = true;
   bool _isLoadingWallet = false;
@@ -100,6 +103,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             isBalanceVisible: _isBalanceVisible,
             isLoading: _isLoadingWallet,
             isBackendOnline: _isBackendOnline,
+            accountName: Session.displayName,
             transactions: _transactions,
             onToggleBalanceVisibility: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
             onRefresh: _fetchRealWalletData,
@@ -130,6 +134,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             isBackendOnline: _isBackendOnline,
             backendPingLatency: _backendPingLatency,
             onBackendUrlChanged: (newUrl) {
+              Session.rememberBackend(newUrl);
               setState(() => backendUrl = newUrl);
               _testBackendPing();
               _fetchRealWalletData();
@@ -138,6 +143,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               await _testBackendPing();
               await _fetchRealWalletData();
             },
+            accountName: Session.displayName,
+            accountPhone: Session.phone ?? '',
+            onLogout: widget.onLogout,
           ),
         ],
       ),

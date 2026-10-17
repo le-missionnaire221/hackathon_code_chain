@@ -1,6 +1,6 @@
-﻿import crypto from 'node:crypto';
+﻿import './env.js';
+import crypto from 'node:crypto';
 import https from 'node:https';
-import 'dotenv/config';
 
 const { BITNOB_CLIENT_ID: ID, BITNOB_CLIENT_SECRET: SECRET } = process.env;
 

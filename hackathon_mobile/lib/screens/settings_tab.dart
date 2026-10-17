@@ -11,6 +11,9 @@ class SettingsTab extends StatefulWidget {
   final String? backendPingLatency;
   final Function(String newUrl) onBackendUrlChanged;
   final Future<void> Function() onTestPing;
+  final String accountName;
+  final String accountPhone;
+  final Future<void> Function() onLogout;
 
   const SettingsTab({
     super.key,
@@ -19,6 +22,9 @@ class SettingsTab extends StatefulWidget {
     required this.backendPingLatency,
     required this.onBackendUrlChanged,
     required this.onTestPing,
+    required this.accountName,
+    required this.accountPhone,
+    required this.onLogout,
   });
 
   @override
@@ -125,6 +131,46 @@ class _SettingsTabState extends State<SettingsTab> {
             ],
           ),
           const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'COMPTE',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InfoRow(label: 'Nom', value: widget.accountName),
+                const Divider(),
+                InfoRow(
+                  label: 'Téléphone',
+                  value: widget.accountPhone.isEmpty ? '—' : '+${widget.accountPhone}',
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onLogout,
+                    icon: const Icon(Icons.logout_rounded, color: AppColors.error),
+                    label: const Text('Se déconnecter', style: TextStyle(color: AppColors.error)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
 
           // Carte Statut Système
           Container(

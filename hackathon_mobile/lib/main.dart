@@ -3,7 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'core/constants/app_colors.dart';
 import 'core/constants/app_theme.dart';
-import 'screens/main_navigation_screen.dart';
+import 'screens/auth_gate.dart';
 
 void main() {
   runApp(const CodeChainFintechApp());
@@ -46,7 +46,7 @@ class CodeChainFintechApp extends StatelessWidget {
           ),
         );
       },
-      home: const MainNavigationScreen(),
+      home: const AuthGate(),
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
-import '../core/constants/app_constants.dart';
 import '../core/utils/formatters.dart';
 import '../models/transaction_item.dart';
 import '../widgets/blink_address_sheet.dart';
@@ -22,6 +21,7 @@ class WalletTab extends StatelessWidget {
   final bool isBalanceVisible;
   final bool isLoading;
   final bool isBackendOnline;
+  final String accountName;
   final String backendUrl;
   final List<TransactionItem> transactions;
   final VoidCallback onToggleBalanceVisibility;
@@ -42,6 +42,7 @@ class WalletTab extends StatelessWidget {
     required this.isBalanceVisible,
     required this.isLoading,
     required this.isBackendOnline,
+    required this.accountName,
     required this.backendUrl,
     required this.transactions,
     required this.onToggleBalanceVisibility,
@@ -49,6 +50,13 @@ class WalletTab extends StatelessWidget {
     required this.onNavigateToPos,
     required this.onNavigateToHistory,
   });
+
+  static String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+    if (parts.isEmpty) return 'PC';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'.toUpperCase();
+  }
 
   static const TextStyle _balanceStyle = TextStyle(
     fontSize: 38,
@@ -102,28 +110,28 @@ class WalletTab extends StatelessWidget {
               BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4)),
             ],
           ),
-          child: const Text(
-            AppConstants.developerInitials,
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+          child: Text(
+            _initials(accountName),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Bonjour 👋',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
-                AppConstants.developerName,
+                accountName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
               ),
             ],
           ),

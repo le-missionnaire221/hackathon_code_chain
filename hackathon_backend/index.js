@@ -1,7 +1,12 @@
+import './env.js';
 import express from 'express';
+import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import crypto from 'node:crypto';
+import { initDb, pool, getInvoice, createInvoiceRecord, listPendingInvoices, settleInvoice, releaseInvoice, buildWalletPayload } from './db.js';
+import { requireAuth, mountAuth } from './auth.js';
+import { mountDocs } from './swagger.js';
+import { mountAdmin } from './admin.js';
 
 // Forcer IPv4 pour la connectivité réseau sous Windows
 dns.setDefaultResultOrder('ipv4first');
@@ -19,139 +24,81 @@ app.use(express.json({
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-signature, x-bitnob-signature');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-signature, x-bitnob-signature');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 
-// Suivi local des factures et preimages
-// Format invoice : { reference, bitnobId, amount, description, status, isEscrow, escrowStatus, releaseCode, preimage, createdAt, paidAt, releasedAt }
-const invoices = new Map();
-
-// Helper pour extraire les 4 derniers caractères d'une preimage comme code OTP court
-function extractShortCode(preimage) {
-  if (!preimage) return '0000';
-  const clean = preimage.replace(/[^a-fA-F0-9]/g, '');
-  return clean.slice(-4).toUpperCase();
-}
+mountAuth(app);
+mountDocs(app);
+mountAdmin(app);
 
 // === ROUTE DE SANTÉ (HEALTHCHECK RÉEL) ===
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    server: 'Express Node.js',
-    port: port,
-    features: ['pos', 'escrow_bilateral', 'lightning_settlement'],
-    uptimeSeconds: Math.floor(process.uptime()),
-    timestamp: new Date().toISOString()
-  });
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({
+      status: 'OK',
+      server: 'Express Node.js',
+      database: 'postgresql',
+      port: port,
+      features: ['accounts', 'wallets', 'pos', 'escrow_bilateral', 'lightning_settlement', 'admin'],
+      uptimeSeconds: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({ status: 'DEGRADED', database: 'down', error: 'PostgreSQL indisponible' });
+  }
 });
 
-// === ROUTE WALLET & TRANSACTIONS (AVEC SÉPARATION DU SÉQUESTRE) ===
-app.get('/wallet', async (req, res) => {
+async function reconcileInvoice(invoice) {
+  if (!invoice || invoice.status === 'paid' || !invoice.bitnobId) return invoice;
   try {
-    const bitnobRes = await bitnob('GET', '/api/lightning/invoices');
-    const rawInvoices = bitnobRes.data?.invoices || [];
+    const bitnobCheck = await bitnob('GET', `/api/lightning/invoices/${invoice.bitnobId}`);
+    if (bitnobCheck.data?.status === 'paid') {
+      const settled = await settleInvoice(invoice.reference, { preimage: bitnobCheck.data.preimage });
+      console.log(`✅ [BITNOB SETTLEMENT] ${invoice.reference} réglée. Code: ${settled?.releaseCode}`);
+      return settled;
+    }
+  } catch {
+    // Le polling suivant réessaiera.
+  }
+  return invoice;
+}
 
-    let totalAvailableSats = 0;
-    let totalEscrowSats = 0;
-    let lockedEscrowCount = 0;
-
-    const transactions = rawInvoices.map((inv) => {
-      const isPaid = inv.status === 'paid';
-      const sats = Number(inv.amount_sat || 0);
-
-      // Récupérer les métadonnées de séquestre locales si existantes
-      const local = invoices.get(inv.reference);
-      const isEscrow = local?.isEscrow || false;
-      const preimage = inv.preimage || local?.preimage || null;
-      const releaseCode = local?.releaseCode || (preimage ? extractShortCode(preimage) : null);
-
-      let escrowStatus = 'none';
-      if (isEscrow) {
-        if (!isPaid) {
-          escrowStatus = 'awaiting_lock';
-        } else if (local?.escrowStatus === 'released') {
-          escrowStatus = 'released';
-        } else {
-          escrowStatus = 'locked'; // Fonds garantis bloqués sous séquestre
-        }
-      }
-
-      // Calcul des balances
-      if (isPaid) {
-        if (isEscrow && escrowStatus === 'locked') {
-          totalEscrowSats += sats;
-          lockedEscrowCount++;
-        } else {
-          totalAvailableSats += sats;
-        }
-      }
-
-      let displayStatus = 'En attente';
-      if (isPaid) {
-        if (isEscrow && escrowStatus === 'locked') {
-          displayStatus = 'Séquestré 🔒';
-        } else if (isEscrow && escrowStatus === 'released') {
-          displayStatus = 'Livré & Libéré 🔓';
-        } else {
-          displayStatus = 'Confirmé ⚡';
-        }
-      } else if (inv.status === 'expired') {
-        displayStatus = 'Expiré';
-      }
-
-      return {
-        id: inv.id,
-        reference: inv.reference || 'N/A',
-        title: inv.description || (isEscrow ? 'Vente Séquestrée WhatsApp' : 'Encaissement Marchand POS'),
-        category: isEscrow ? 'Commerce Distance (Séquestre)' : 'Encaissement Comptoir POS',
-        amountSats: sats,
-        amountFcfa: Math.round(sats * 0.65),
-        isCredit: true,
-        date: inv.created_at || new Date().toISOString(),
-        status: displayStatus,
-        isEscrow: isEscrow,
-        escrowStatus: escrowStatus,
-        releaseCode: releaseCode,
-        preimage: preimage,
-        request: inv.request
-      };
-    });
-
-    res.json({
-      success: true,
-      balanceSats: totalAvailableSats,
-      balanceFcfa: Math.round(totalAvailableSats * 0.65),
-      escrowSats: totalEscrowSats,
-      escrowFcfa: Math.round(totalEscrowSats * 0.65),
-      escrowInvoicesCount: lockedEscrowCount,
-      btcPriceFcfa: 64850000,
-      totalInvoices: rawInvoices.length,
-      paidInvoicesCount: rawInvoices.filter(i => i.status === 'paid').length,
-      transactions: transactions
-    });
+// === PORTEFEUILLE DU COMPTE CONNECTÉ ===
+app.get('/wallet', requireAuth, async (req, res) => {
+  try {
+    const pending = await listPendingInvoices(req.user.id);
+    for (const invoice of pending) {
+      await reconcileInvoice(invoice);
+    }
+    res.json(await buildWalletPayload(req.user.id));
   } catch (err) {
     console.error('Erreur /wallet:', err);
-    res.status(500).json({ error: 'Impossible de récupérer les données réelles de Bitnob' });
+    res.status(500).json({ error: 'Impossible de lire le portefeuille' });
   }
 });
 
 // === CRÉATION D'UNE INVOICE LIGHTNING (AVEC OPTION SÉQUESTRE DISTANCE) ===
-app.post('/invoice', async (req, res) => {
+app.post('/invoice', requireAuth, async (req, res) => {
   const { customerId, description, amount, isEscrow } = req.body;
-  
+  const sats = Number(amount);
+  if (!Number.isInteger(sats) || sats <= 0) {
+    return res.status(400).json({ error: 'Montant invalide' });
+  }
+
   try {
     const reference = (isEscrow ? 'ESC_' : 'LTG_') + Date.now();
-    
-    // Appel officiel à l'API Bitnob Lightning
+    const label = description || (isEscrow ? 'Séquestre PayChain' : 'Paiement Lightning');
+
     const invoiceResponse = await bitnob('POST', '/api/lightning/invoices', {
       customer_id: customerId,
-      amount: Number(amount),
-      description: description || (isEscrow ? 'Séquestre PayChain' : 'Paiement Lightning'),
+      amount: sats,
+      description: label,
       expiry: 3600,
       reference: reference,
-      auto_settle: true // Règlement automatique réel par le moteur de testnet Bitnob
+      auto_settle: true
     });
 
     if (invoiceResponse.status >= 400 || invoiceResponse.error || invoiceResponse.code) {
@@ -162,22 +109,21 @@ app.post('/invoice', async (req, res) => {
       });
     }
 
-    const bitnobId = invoiceResponse.data?.id;
+    const payload = invoiceResponse.data || {};
+    const bitnobId = payload.id;
+    const bolt11 = payload.request || '';
 
-    // Enregistrer la facture pour le suivi du statut et du séquestre
-    invoices.set(reference, {
+    await createInvoiceRecord({
+      userId: req.user.id,
       reference,
       bitnobId,
-      amount: Number(amount),
-      description: description || (isEscrow ? 'Séquestre PayChain' : 'Paiement Lightning'),
-      status: 'pending',
+      amount: sats,
+      description: label,
       isEscrow: Boolean(isEscrow),
-      escrowStatus: isEscrow ? 'awaiting_lock' : 'none',
-      releaseCode: null,
-      createdAt: new Date().toISOString()
+      bolt11
     });
 
-    console.log(`⚡ Invoice créée : ${reference} (Bitnob ID: ${bitnobId}, Séquestre: ${Boolean(isEscrow)})`);
+    console.log(`⚡ Invoice créée : ${reference} pour +${req.user.phone} (Séquestre: ${Boolean(isEscrow)})`);
     res.json({
       ...invoiceResponse,
       reference,
@@ -192,68 +138,25 @@ app.post('/invoice', async (req, res) => {
 
 // === SUIVI DU STATUT DE L'INVOICE & DU SÉQUESTRE ===
 app.get('/invoice/:reference/status', async (req, res) => {
-  const invoice = invoices.get(req.params.reference);
+  const invoice = await getInvoice(req.params.reference);
   if (!invoice) {
     return res.status(404).json({ error: "Invoice non trouvée" });
   }
-
-  // Si pas encore payée, on interroge Bitnob pour vérifier le règlement
-  if (invoice.status !== 'paid' && invoice.bitnobId) {
-    try {
-      const bitnobCheck = await bitnob('GET', `/api/lightning/invoices/${invoice.bitnobId}`);
-      if (bitnobCheck.data?.status === 'paid') {
-        invoice.status = 'paid';
-        invoice.preimage = bitnobCheck.data.preimage;
-        invoice.paidAt = bitnobCheck.data.updated_at || new Date().toISOString();
-        invoice.releaseCode = extractShortCode(invoice.preimage);
-
-        if (invoice.isEscrow && invoice.escrowStatus === 'awaiting_lock') {
-          invoice.escrowStatus = 'locked'; // Les fonds sont maintenant verrouillés sous séquestre !
-          console.log(`🔒 [SÉQUESTRE ACTIVÉ] L'invoice ${req.params.reference} a été verrouillée sous séquestre ! Code: ${invoice.releaseCode}`);
-        } else {
-          console.log(`✅ [BITNOB SETTLEMENT] L'invoice ${req.params.reference} a été RÉGLÉE ! Preimage: ${invoice.preimage}`);
-        }
-
-        invoices.set(req.params.reference, invoice);
-      }
-    } catch (e) {
-      // Ignorer l'erreur réseau ponctuelle
-    }
-  }
-
-  res.json(invoice);
+  res.json(await reconcileInvoice(invoice));
 });
 
 // === RÈGLEMENT CLIENT DIRECT (DEPUIS L'APP OU LE BOUTON WEB) ===
-app.post('/invoice/:reference/pay', (req, res) => {
-  const { reference } = req.params;
-  const invoice = invoices.get(reference);
-  if (!invoice) {
+app.post('/invoice/:reference/pay', async (req, res) => {
+  const existing = await getInvoice(req.params.reference);
+  if (!existing) {
     return res.status(404).json({ success: false, error: "Facture introuvable" });
   }
 
-  if (invoice.status === 'paid') {
-    return res.json({ success: true, message: "Déjà réglée", invoice });
-  }
-
-  invoice.status = 'paid';
-  invoice.paidAt = new Date().toISOString();
-  if (!invoice.preimage) {
-    invoice.preimage = crypto.randomBytes(32).toString('hex');
-  }
-  invoice.releaseCode = extractShortCode(invoice.preimage);
-
-  if (invoice.isEscrow) {
-    invoice.escrowStatus = 'locked';
-    console.log(`🔒 [PAIEMENT CLIENT APP/WEB] Commande ${reference} verrouillée sous séquestre ! Code secret: ${invoice.releaseCode}`);
-  } else {
-    console.log(`⚡ [PAIEMENT CLIENT APP/WEB] Commande ${reference} réglée avec succès !`);
-  }
-
-  invoices.set(reference, invoice);
+  const invoice = await settleInvoice(req.params.reference, { preimage: existing.preimage });
+  console.log(`${invoice.isEscrow ? '🔒' : '⚡'} [PAIEMENT CLIENT] ${invoice.reference} → ${invoice.escrowStatus}`);
   res.json({
     success: true,
-    reference,
+    reference: invoice.reference,
     status: invoice.status,
     isEscrow: invoice.isEscrow,
     escrowStatus: invoice.escrowStatus,
@@ -264,9 +167,17 @@ app.post('/invoice/:reference/pay', (req, res) => {
 });
 
 // === PAGE WEB DE PAIEMENT SÉCURISÉ (ADAPTATIVE MOBILE & PC) ===
-app.get('/pay/:reference', (req, res) => {
+app.get('/pay/:reference', async (req, res) => {
   const { reference } = req.params;
-  const invoice = invoices.get(reference);
+  const invoice = await getInvoice(reference);
+  if (invoice) {
+    invoice.description = String(invoice.description || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    invoice.bolt11 = String(invoice.bolt11 || '').replace(/["\\<>]/g, '');
+  }
 
   if (!invoice) {
     return res.status(404).send(`
@@ -293,7 +204,7 @@ app.get('/pay/:reference', (req, res) => {
     `);
   }
 
-  const fcfaAmount = Math.round(invoice.amount * 6.0);
+  const fcfaAmount = Math.round(invoice.amount * 0.65);
   const isEscrow = Boolean(invoice.isEscrow);
   const userAgent = (req.headers['user-agent'] || '').toLowerCase();
   const isMobileServer = /mobile|iphone|ipod|android|blackberry|opera mini|iemobile|wpdesktop/i.test(userAgent);
@@ -931,59 +842,33 @@ app.get('/pay/:reference', (req, res) => {
 });
 
 // === DÉBLOCAGE DU SÉQUESTRE (REMISE DU COLIS CONFIRMÉE) ===
-app.post('/invoice/:reference/release', (req, res) => {
+app.post('/invoice/:reference/release', requireAuth, async (req, res) => {
   const { reference } = req.params;
-  const { code } = req.body;
-
-  const invoice = invoices.get(reference);
-  if (!invoice) {
+  const existing = await getInvoice(reference);
+  if (!existing) {
     return res.status(404).json({ success: false, error: "Commande introuvable" });
   }
-
-  if (!invoice.isEscrow) {
-    return res.status(400).json({ success: false, error: "Cette facture n'est pas sous séquestre" });
+  if (existing.userId !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, error: "Cette commande appartient à un autre compte" });
   }
 
-  if (invoice.status !== 'paid') {
-    return res.status(400).json({ success: false, error: "Les fonds n'ont pas encore été déposés par le client" });
+  const result = await releaseInvoice(reference, req.body?.code);
+  if (result.error) {
+    return res.status(result.status || 400).json({ success: false, error: result.error });
   }
 
-  // Vérifier le code de déblocage (OTP fourni par le client au marchand lors de la remise)
-  const provided = (code || '').toString().trim().toUpperCase();
-  const expectedShort = invoice.releaseCode?.toUpperCase();
-  const expectedFull = invoice.preimage?.toUpperCase();
-
-  // Le code est obligatoire et doit concorder
-  const isValidCode = provided && (
-    provided === expectedShort ||
-    (expectedFull && expectedFull.endsWith(provided)) ||
-    provided === expectedFull
-  );
-
-  if (!isValidCode) {
-    return res.status(400).json({
-      success: false,
-      error: `Code secret invalide ! Demandez au client son code à 4 chiffres affiché sur sa page de reçu.`
-    });
-  }
-
-  invoice.escrowStatus = 'released';
-  invoice.releasedAt = new Date().toISOString();
-  invoices.set(reference, invoice);
-
-  console.log(`🔓 [SÉQUESTRE DÉBLOQUÉ PAR CODE] Commande ${reference} libérée avec succès (Code: ${provided}) !`);
-
+  console.log(`🔓 [SÉQUESTRE DÉBLOQUÉ] ${reference}`);
   res.json({
     success: true,
     reference,
     escrowStatus: 'released',
-    amount: invoice.amount,
+    amount: result.invoice.amount,
     message: "Cadenas débloqué ! Fonds transférés dans votre solde disponible."
   });
 });
 
 // === RÉCEPTION DES WEBHOOKS DE BITNOB ===
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
   const bitnobSignature =
     req.headers['x-signature'] ||
     req.headers['x-bitnob-signature'] ||
@@ -1009,27 +894,21 @@ app.post('/webhook', (req, res) => {
   const eventName = req.body.event || (req.body.test ? 'test' : 'inconnu');
   if (eventName === 'lightning.invoice.paid') {
     const ref = req.body.data?.reference;
-    if (ref && invoices.has(ref)) {
-      const current = invoices.get(ref);
-      const preimage = req.body.data?.preimage || current.preimage;
-      const releaseCode = extractShortCode(preimage);
-
-      invoices.set(ref, {
-        ...current,
-        status: 'paid',
-        paidAt: new Date().toISOString(),
-        preimage: preimage,
-        releaseCode: releaseCode,
-        escrowStatus: current.isEscrow ? 'locked' : current.escrowStatus,
-        details: req.body.data
-      });
+    if (ref) {
+      const current = await getInvoice(ref);
+      if (current) {
+        await settleInvoice(ref, { preimage: req.body.data?.preimage || current.preimage });
+      }
     }
   }
 
   res.sendStatus(200);
 });
 
-// Lancer le serveur
+await initDb();
+
 app.listen(port, () => {
-  console.log(`🚀 Serveur PayChain avec Séquestre Bilatéral démarré sur http://localhost:${port}`);
+  console.log(`🚀 Serveur PayChain démarré sur http://localhost:${port}`);
+  console.log(`📚 Swagger : http://localhost:${port}/docs`);
+  console.log(`🛡️ Admin   : http://localhost:${port}/admin`);
 });
