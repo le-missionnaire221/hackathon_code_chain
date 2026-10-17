@@ -10,6 +10,11 @@ class AppColors {
   static const Color amber = Color(0xFFF59E0B);         // Ambre En attente
   static const Color amberDark = Color(0xFFD97706);
 
+  // WhatsApp & Réseaux Sociaux
+  static const Color whatsapp = Color(0xFF25D366);      // Vert WhatsApp officiel
+  static const Color whatsappDark = Color(0xFF128C7E);
+  static const Color whatsappLight = Color(0xFFDCF8C6);
+
   // Statuts & Accents
   static const Color success = Color(0xFF10B981);       // Vert Émeraude
   static const Color successLight = Color(0xFFE8F5E9);
