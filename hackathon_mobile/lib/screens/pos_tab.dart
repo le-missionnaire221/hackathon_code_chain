@@ -1,11 +1,15 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
+import '../core/utils/formatters.dart';
+import '../widgets/common/status_pill.dart';
 import '../widgets/whatsapp_share_modal.dart';
+
+enum _PosStage { input, waiting, paid }
 
 class PosTab extends StatefulWidget {
   final String backendUrl;
@@ -22,661 +26,1024 @@ class PosTab extends StatefulWidget {
 }
 
 class _PosTabState extends State<PosTab> {
-  final TextEditingController _amountController = TextEditingController(text: '100');
+  static const int _maxDigits = 9;
+  static const List<String> _fcfaPresets = ['500', '1000', '2500', '5000', '10000'];
+  static const Duration _pollInterval = Duration(seconds: 2);
+  static const Duration _pollTimeout = Duration(minutes: 15);
+  static const String _backspace = '⌫';
+
   final TextEditingController _descController = TextEditingController(text: 'Sac Artisanal Cuir Ngor');
 
-  bool _isDistanceMode = false; // false = Mode TPE Comptoir, true = Mode Vente à Distance WhatsApp
+  // Saisie
+  String _amountInput = '100';
+  bool _inputInFcfa = false;      // false = saisie en SATS, true = saisie en FCFA
+  bool _isDistanceMode = false;   // false = Comptoir (TPE), true = WhatsApp / à distance
   bool _isLoading = false;
+
+  // Facture en cours
+  _PosStage _stage = _PosStage.input;
   String? _bolt11Invoice;
   String? _invoiceReference;
   String? _preimage;
-  bool _isPaid = false;
+  int _invoiceSats = 0;
+  String _invoiceDescription = '';
+  DateTime? _invoiceCreatedAt;
+  bool _isExpired = false;
+
   Timer? _statusTimer;
+  Timer? _clockTimer;
+  bool _pollInFlight = false;
+
+  int get _enteredValue => int.tryParse(_amountInput) ?? 0;
+
+  int get _sats => _inputInFcfa ? (_enteredValue / AppConstants.satRateInFcfa).round() : _enteredValue;
+
+  double get _fcfa => _inputInFcfa ? _enteredValue.toDouble() : _enteredValue * AppConstants.satRateInFcfa;
+
+  Color get _accent => _isDistanceMode ? AppColors.whatsappDark : AppColors.primary;
 
   @override
   void dispose() {
-    _statusTimer?.cancel();
-    _amountController.dispose();
+    _stopTimers();
     _descController.dispose();
     super.dispose();
   }
 
+  void _stopTimers() {
+    _statusTimer?.cancel();
+    _clockTimer?.cancel();
+    _statusTimer = null;
+    _clockTimer = null;
+  }
+
+  // ───────────────────────── Logique de saisie ─────────────────────────
+  void _onKeyTap(String key) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (key == _backspace) {
+        _amountInput = _amountInput.length <= 1 ? '0' : _amountInput.substring(0, _amountInput.length - 1);
+        return;
+      }
+      if (_amountInput == '0') {
+        if (key == '0' || key == '00') return;
+        _amountInput = key;
+        return;
+      }
+      final next = _amountInput + key;
+      if (next.length > _maxDigits) return;
+      _amountInput = next;
+    });
+  }
+
+  void _clearAmount() {
+    HapticFeedback.mediumImpact();
+    setState(() => _amountInput = '0');
+  }
+
+  void _toggleUnit() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      final sats = _sats;
+      final fcfa = _fcfa;
+      _inputInFcfa = !_inputInFcfa;
+      _amountInput = (_inputInFcfa ? fcfa.round() : sats).toString();
+    });
+  }
+
+  // ───────────────────────── Facturation Bitnob ─────────────────────────
   Future<void> _createInvoice() async {
-    final amount = int.tryParse(_amountController.text);
-    if (amount == null || amount <= 0) {
-      _showSnackbar('Veuillez entrer un montant valide supérieur à 0.', AppColors.error);
+    final sats = _sats;
+    if (sats <= 0) {
+      _showSnackbar('Entrez un montant supérieur à 0.', AppColors.error);
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-      _bolt11Invoice = null;
-      _invoiceReference = null;
-      _isPaid = false;
-      _preimage = null;
-    });
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
 
-    final data = await ApiService.createInvoice(
-      widget.backendUrl,
-      amount: amount,
-      description: _descController.text,
-    );
+    final description = _descController.text.trim().isEmpty ? 'Paiement PayChain' : _descController.text.trim();
+    final data = await ApiService.createInvoice(widget.backendUrl, amount: sats, description: description);
+    if (!mounted) return;
 
-    if (data != null && data['data'] != null && data['data']['request'] != null) {
+    final invoiceData = data?['data'];
+    final request = invoiceData is Map ? invoiceData['request'] : null;
+
+    if (request is String && request.isNotEmpty) {
+      final reference = data?['reference']?.toString() ?? '';
+      HapticFeedback.mediumImpact();
       setState(() {
-        _bolt11Invoice = data['data']['request'];
-        _invoiceReference = data['reference'];
         _isLoading = false;
+        _bolt11Invoice = request;
+        _invoiceReference = reference;
+        _invoiceSats = sats;
+        _invoiceDescription = description;
+        _invoiceCreatedAt = DateTime.now();
+        _preimage = null;
+        _isExpired = false;
+        _stage = _PosStage.waiting;
       });
-
-      _startPolling(data['reference']);
+      _startPolling(reference);
     } else {
       setState(() => _isLoading = false);
-      _showSnackbar(
-        'Erreur Bitnob : ${data?['error'] ?? data?['message'] ?? 'Impossible de joindre le backend'}',
-        AppColors.error,
-      );
+      final err = data?['error'] ?? data?['message'] ?? 'Impossible de joindre le serveur';
+      _showSnackbar('Erreur Bitnob : $err', AppColors.error);
     }
   }
 
   void _startPolling(String reference) {
-    _statusTimer?.cancel();
-    _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+    _stopTimers();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+    _statusTimer = Timer.periodic(_pollInterval, (timer) async {
+      if (_pollInFlight) return;
+
+      final createdAt = _invoiceCreatedAt;
+      if (createdAt != null && DateTime.now().difference(createdAt) > _pollTimeout) {
+        _stopTimers();
+        if (mounted) setState(() => _isExpired = true);
+        return;
+      }
+
+      _pollInFlight = true;
       final data = await ApiService.getInvoiceStatus(widget.backendUrl, reference);
+      _pollInFlight = false;
+
+      if (!mounted || _invoiceReference != reference || _stage != _PosStage.waiting) return;
+
       if (data != null && data['status'] == 'paid') {
-        timer.cancel();
+        _stopTimers();
+        HapticFeedback.heavyImpact();
         setState(() {
-          _isPaid = true;
-          _preimage = data['preimage'];
+          _preimage = data['preimage']?.toString();
+          _stage = _PosStage.paid;
         });
-        final sats = int.tryParse(_amountController.text) ?? 100;
-        widget.onPaymentReceived(sats, reference, data['preimage'], _descController.text);
+        widget.onPaymentReceived(_invoiceSats, reference, _preimage, _invoiceDescription);
       }
     });
   }
 
+  void _resetToInput() {
+    _stopTimers();
+    setState(() {
+      _stage = _PosStage.input;
+      _bolt11Invoice = null;
+      _invoiceReference = null;
+      _preimage = null;
+      _invoiceCreatedAt = null;
+      _isExpired = false;
+    });
+  }
+
+  void _copy(String value, String message) {
+    Clipboard.setData(ClipboardData(text: value));
+    HapticFeedback.lightImpact();
+    _showSnackbar(message, AppColors.primary);
+  }
+
   void _showSnackbar(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color, duration: const Duration(seconds: 3)),
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg), backgroundColor: color, duration: const Duration(seconds: 3)));
+  }
+
+  String get _invoiceAmountText =>
+      '${Formatters.sats(_invoiceSats)} (≈ ${Formatters.fcfa(_invoiceSats * AppConstants.satRateInFcfa)})';
+
+  void _shareInvoice() {
+    final bolt11 = _bolt11Invoice;
+    if (bolt11 == null) return;
+    WhatsappShareModal.show(
+      context,
+      title: _invoiceDescription,
+      amountText: _invoiceAmountText,
+      reference: _invoiceReference ?? 'N/A',
+      bolt11OrPreimage: bolt11,
+      isDeliveryReceipt: false,
     );
   }
 
+  void _shareProof() {
+    WhatsappShareModal.show(
+      context,
+      title: _invoiceDescription,
+      amountText: _invoiceAmountText,
+      reference: _invoiceReference ?? 'N/A',
+      bolt11OrPreimage: _preimage ?? 'Preimage confirmée',
+      isDeliveryReceipt: true,
+    );
+  }
+
+  // ───────────────────────── UI ─────────────────────────
   @override
   Widget build(BuildContext context) {
-    final sats = int.tryParse(_amountController.text) ?? 0;
-    final fcfa = sats * AppConstants.satRateInFcfa;
-
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isDistanceMode ? 'Vente à Distance 📦' : 'Point de Vente TPE ⚡',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                    Text(
-                      _isDistanceMode ? 'Facturation WhatsApp & Freelance mondial' : 'Caisse présentielle par QR Code BOLT11',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _isDistanceMode ? const Color(0xFFE8F8EE) : AppColors.chipBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _isDistanceMode ? 'WhatsApp 📲' : 'Comptoir 🏪',
-                    style: TextStyle(
-                      color: _isDistanceMode ? AppColors.whatsapp : AppColors.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+      bottom: false,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 16),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero).animate(animation),
+                child: child,
+              ),
             ),
-            const SizedBox(height: 18),
-
-            if (_isPaid)
-              _buildSuccessCard()
-            else if (_bolt11Invoice != null)
-              _buildInvoiceCard()
-            else
-              _buildGeneratorCard(fcfa),
-          ],
-        ),
+            child: switch (_stage) {
+              _PosStage.input => KeyedSubtree(key: const ValueKey('input'), child: _buildInputStage()),
+              _PosStage.waiting => KeyedSubtree(key: const ValueKey('waiting'), child: _buildWaitingStage()),
+              _PosStage.paid => KeyedSubtree(key: const ValueKey('paid'), child: _buildPaidStage()),
+            },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildGeneratorCard(double fcfa) {
+  Widget _buildHeader() {
+    final (title, subtitle) = switch (_stage) {
+      _PosStage.input => _isDistanceMode
+          ? ('Vente à distance', 'Facture WhatsApp payable depuis n\'importe où')
+          : ('Point de vente', 'Votre téléphone devient un TPE Lightning'),
+      _PosStage.waiting => ('En attente du paiement', 'Le client scanne ou ouvre la facture'),
+      _PosStage.paid => ('Paiement confirmé', 'Fonds reçus de façon irrévocable'),
+    };
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        StatusPill(
+          label: _isDistanceMode ? 'WhatsApp' : 'Comptoir',
+          tone: _isDistanceMode ? PillTone.whatsapp : PillTone.info,
+          icon: _isDistanceMode ? Icons.chat_rounded : Icons.storefront_rounded,
+        ),
+      ],
+    );
+  }
+
+  // ───────────── Étape 1 : saisie ─────────────
+  Widget _buildInputStage() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildChannelSelector(),
+        const SizedBox(height: 14),
+        _buildAmountDisplay(),
+        const SizedBox(height: 12),
+        _buildPresets(),
+        const SizedBox(height: 12),
+        _buildKeypad(),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _descController,
+          textInputAction: TextInputAction.done,
+          maxLength: 60,
+          decoration: const InputDecoration(
+            labelText: 'Article / description',
+            hintText: 'ex : Sac artisanal, prestation freelance…',
+            prefixIcon: Icon(Icons.shopping_bag_outlined),
+            counterText: '',
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildPrimaryButton(),
+      ],
+    );
+  }
+
+  Widget _buildChannelSelector() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ChannelOption(
+              label: 'Comptoir',
+              icon: Icons.storefront_rounded,
+              selected: !_isDistanceMode,
+              color: AppColors.primary,
+              onTap: () => setState(() => _isDistanceMode = false),
+            ),
+          ),
+          Expanded(
+            child: _ChannelOption(
+              label: 'WhatsApp',
+              icon: Icons.chat_rounded,
+              selected: _isDistanceMode,
+              color: AppColors.whatsappDark,
+              onTap: () => setState(() => _isDistanceMode = true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountDisplay() {
+    final unit = _inputInFcfa ? 'FCFA' : 'SATS';
+    final converted = _inputInFcfa ? '≈ ${Formatters.sats(_sats)}' : '≈ ${Formatters.fcfa(_fcfa)}';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
         boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // SÉLECTEUR DE CANAL : COMPTOIR VS VENTE À DISTANCE
-          const Text('CANAL DE VENTE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary, letterSpacing: 0.8)),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _isDistanceMode = false),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: !_isDistanceMode ? Colors.white : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: !_isDistanceMode
-                            ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.storefront_rounded, size: 16, color: !_isDistanceMode ? AppColors.primary : AppColors.textMuted),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Comptoir (TPE)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: !_isDistanceMode ? AppColors.primary : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _isDistanceMode = true),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _isDistanceMode ? Colors.white : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: _isDistanceMode
-                            ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.chat_bubble_rounded, size: 16, color: _isDistanceMode ? AppColors.whatsapp : AppColors.textMuted),
-                          const SizedBox(width: 6),
-                          Text(
-                            'WhatsApp / À distance',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: _isDistanceMode ? AppColors.whatsapp : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          const Text('MONTANT À ENCAISSER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary, letterSpacing: 0.5)),
-          const SizedBox(height: 10),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.primary),
-                    decoration: const InputDecoration(border: InputBorder.none, hintText: '0'),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text('SATS ⚡', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '≈ ${fcfa.toStringAsFixed(0)} FCFA (Taux de conversion instantané)',
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 18),
-
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: AppConstants.quickSatsPresets.map((sats) {
-              return InkWell(
-                onTap: () {
-                  setState(() => _amountController.text = sats);
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.chipBackground,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
-                  ),
-                  child: Text('+$sats sats', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-
-          const Text('Article / Description de la vente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _descController,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: AppColors.background,
-              hintText: 'ex: Sac Artisanal Cuir, Prestation Freelance...',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade200)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade200)),
-            ),
-          ),
-          const SizedBox(height: 26),
-
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isDistanceMode ? AppColors.whatsapp : AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: _isLoading ? null : _createInvoice,
-              child: _isLoading
-                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _isDistanceMode ? Icons.chat_bubble_rounded : Icons.bolt_rounded,
-                          color: _isDistanceMode ? Colors.white : AppColors.lightningGold,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _isDistanceMode ? 'GÉNÉRER LA COMMANDE WHATSAPP' : 'GÉNÉRER LE QR CODE TPE',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildInvoiceCard() {
-    final sats = _amountController.text;
-    final fcfa = (int.tryParse(sats) ?? 0) * AppConstants.satRateInFcfa;
-    final amountText = '$sats SATS (~ ${fcfa.toStringAsFixed(0)} FCFA)';
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(color: AppColors.primary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: _accent.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('$sats SATS', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.primary)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+              const Expanded(
+                child: Text(
+                  'MONTANT À ENCAISSER',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.8,
+                  ),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.amber)),
-                    SizedBox(width: 6),
-                    Text('En attente ⚡', style: TextStyle(color: AppColors.amberDark, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
+              ),
+              Material(
+                color: _accent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(20),
+                child: InkWell(
+                  onTap: _toggleUnit,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.swap_horiz_rounded, size: 16, color: _accent),
+                        const SizedBox(width: 4),
+                        Text(
+                          _inputInFcfa ? 'Saisir en SATS' : 'Saisir en FCFA',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _accent),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text('${_descController.text} • Réf: $_invoiceReference', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-          ),
-          const SizedBox(height: 18),
-
-          // BOUTON WHATSAPP TRÈS VISIBLE EN MODE DISTANCE
-          if (_isDistanceMode) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F8EE),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.whatsapp.withValues(alpha: 0.3)),
-              ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 62,
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  const Icon(Icons.chat_bubble_rounded, color: AppColors.whatsapp, size: 28),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                  Text(
+                    Formatters.thousands(_enteredValue),
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.w900,
+                      color: _accent,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    unit,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            converted,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPresets() {
+    final presets = _inputInFcfa ? _fcfaPresets : AppConstants.quickSatsPresets;
+
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: presets.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final preset = presets[index];
+          final selected = preset == _amountInput;
+          return Material(
+            color: selected ? _accent : AppColors.card,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _amountInput = preset);
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: selected ? _accent : AppColors.border),
+                ),
+                child: Text(
+                  Formatters.thousands(int.parse(preset)),
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : AppColors.textBody,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildKeypad() {
+    const rows = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['00', '0', _backspace],
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          for (final row in rows)
+            Row(
+              children: [
+                for (final key in row)
+                  Expanded(
+                    child: _KeypadButton(
+                      label: key,
+                      isBackspace: key == _backspace,
+                      onTap: () => _onKeyTap(key),
+                      onLongPress: key == _backspace ? _clearAmount : null,
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrimaryButton() {
+    final color = _isDistanceMode ? AppColors.whatsapp : AppColors.primary;
+    final label = _isDistanceMode ? 'Créer la facture WhatsApp' : 'Générer le QR code';
+    final enabled = !_isLoading && _sats > 0;
+
+    return SizedBox(
+      height: 58,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: color.withValues(alpha: 0.45),
+          disabledForegroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
+        onPressed: enabled ? _createInvoice : null,
+        child: _isLoading
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _isDistanceMode ? Icons.send_rounded : Icons.qr_code_2_rounded,
+                    color: _isDistanceMode ? Colors.white : AppColors.lightningGold,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  // ───────────── Étape 2 : attente du paiement ─────────────
+  Widget _buildWaitingStage() {
+    final createdAt = _invoiceCreatedAt;
+    final elapsed = createdAt == null ? Duration.zero : DateTime.now().difference(createdAt);
+    final bolt11 = _bolt11Invoice ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: _accent.withValues(alpha: 0.25), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: _accent.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 10)),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Commande à distance prête !', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                        Text('Envoyez la facture sur WhatsApp à votre client pour qu\'il règle.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              Formatters.sats(_invoiceSats),
+                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: _accent),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '≈ ${Formatters.fcfa(_invoiceSats * AppConstants.satRateInFcfa)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                        ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _isExpired
+                      ? const StatusPill(label: 'Expirée', tone: PillTone.neutral, icon: Icons.timer_off_rounded)
+                      : const StatusPill(label: 'En attente', tone: PillTone.warning, icon: Icons.schedule_rounded),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '$_invoiceDescription • Réf. ${_invoiceReference ?? '-'}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (_isDistanceMode) ...[
+                _buildWhatsappHint(),
+                const SizedBox(height: 16),
+              ],
+              _buildQrCode(bolt11),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (!_isExpired) ...[
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: _accent),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      _isExpired
+                          ? 'Délai dépassé — créez une nouvelle facture'
+                          : 'Écoute du réseau Lightning • ${Formatters.elapsed(elapsed)}',
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copier', maxLines: 1, overflow: TextOverflow.ellipsis),
+                onPressed: () => _copy(bolt11, 'Facture Lightning copiée !'),
+              ),
             ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
+            const SizedBox(width: 10),
+            Expanded(
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.whatsapp,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
                 icon: const Icon(Icons.share_rounded, size: 18),
-                label: const Text('ENVOYER LA FACTURE PAR WHATSAPP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                onPressed: () {
-                  WhatsappShareModal.show(
-                    context,
-                    title: _descController.text,
-                    amountText: amountText,
-                    reference: _invoiceReference ?? 'N/A',
-                    bolt11OrPreimage: _bolt11Invoice!,
-                    isDeliveryReceipt: false,
-                  );
-                },
+                label: const Text('WhatsApp', maxLines: 1, overflow: TextOverflow.ellipsis),
+                onPressed: _shareInvoice,
               ),
             ),
-            const SizedBox(height: 18),
           ],
+        ),
+        const SizedBox(height: 6),
+        TextButton.icon(
+          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+          onPressed: _resetToInput,
+          icon: const Icon(Icons.close_rounded, size: 18),
+          label: Text(_isExpired ? 'Nouvelle facture' : 'Annuler la facture'),
+        ),
+      ],
+    );
+  }
 
-          // QR CODE POUR MODE COMPTOIR / PRÉSENTIEL
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border, width: 1.5),
+  Widget _buildWhatsappHint() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.whatsappSoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.whatsapp.withValues(alpha: 0.3)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.chat_rounded, color: AppColors.whatsappDark, size: 24),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Envoyez la facture au client sur WhatsApp : il paie depuis son portefeuille, où qu\'il soit.',
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12.5, color: AppColors.textBody, height: 1.35),
             ),
-            child: QrImageView(
-              data: _bolt11Invoice!,
-              version: QrVersions.auto,
-              size: 210,
-              eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: AppColors.primary),
-              dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: AppColors.sapphire),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primary, width: 1.2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.primary),
-                  label: const Text('Copier BOLT11', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _bolt11Invoice!));
-                    _showSnackbar('Facture Lightning copiée dans le presse-papier !', AppColors.primary);
-                  },
-                ),
-              ),
-              if (!_isDistanceMode) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.whatsapp, width: 1.2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: AppColors.whatsapp),
-                    label: const Text('WhatsApp', style: TextStyle(color: AppColors.whatsapp, fontWeight: FontWeight.bold, fontSize: 12)),
-                    onPressed: () {
-                      WhatsappShareModal.show(
-                        context,
-                        title: _descController.text,
-                        amountText: amountText,
-                        reference: _invoiceReference ?? 'N/A',
-                        bolt11OrPreimage: _bolt11Invoice!,
-                        isDeliveryReceipt: false,
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
-              SizedBox(width: 8),
-              Text('Règlement sur le réseau Lightning en cours...', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          TextButton(
-            onPressed: () {
-              _statusTimer?.cancel();
-              setState(() {
-                _bolt11Invoice = null;
-                _invoiceReference = null;
-                _preimage = null;
-              });
-            },
-            child: const Text('Annuler et revenir', style: TextStyle(color: AppColors.textMuted)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSuccessCard() {
-    final sats = _amountController.text;
-    final fcfa = (int.tryParse(sats) ?? 0) * AppConstants.satRateInFcfa;
-    final amountText = '$sats SATS (${fcfa.toStringAsFixed(0)} FCFA)';
-
-    return Container(
-      padding: const EdgeInsets.all(26),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.success, width: 2),
-        boxShadow: [
-          BoxShadow(color: AppColors.success.withValues(alpha: 0.12), blurRadius: 24, offset: const Offset(0, 8)),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: const BoxDecoration(color: AppColors.successLight, shape: BoxShape.circle),
-            child: const Center(
-              child: Icon(Icons.check_circle_rounded, size: 50, color: AppColors.success),
+  Widget _buildQrCode(String bolt11) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = (constraints.maxWidth - 40).clamp(140.0, 250.0).toDouble();
+        return Center(
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 300),
+            opacity: _isExpired ? 0.25 : 1,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: AppColors.border, width: 1.5),
+              ),
+              child: QrImageView(
+                data: bolt11,
+                version: QrVersions.auto,
+                size: size,
+                padding: EdgeInsets.zero,
+                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: AppColors.primary),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: AppColors.sapphire,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 18),
-          const Text('Paiement Reçu avec Succès !', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-          const SizedBox(height: 4),
-          Text(
-            '$sats Satoshis confirmés sur Lightning Network ⚡',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: AppColors.success, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 18),
+        );
+      },
+    );
+  }
 
-          // BANNIÈRE PREUVE DE LIVRAISON SÉCURISÉE (ANTI-ARNAQUE)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
+  // ───────────── Étape 3 : paiement reçu ─────────────
+  Widget _buildPaidStage() {
+    final fcfa = _invoiceSats * AppConstants.satRateInFcfa;
+    final preimage = _preimage;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppColors.success.withValues(alpha: 0.6), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: AppColors.success.withValues(alpha: 0.15), blurRadius: 28, offset: const Offset(0, 10)),
+            ],
+          ),
+          child: Column(
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 750),
+                curve: Curves.elasticOut,
+                builder: (context, value, child) => Transform.scale(scale: value, child: child),
+                child: Container(
+                  width: 86,
+                  height: 86,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.successGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: AppColors.success.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8)),
+                    ],
+                  ),
+                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 50),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Paiement reçu !',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '+${Formatters.sats(_invoiceSats)}',
+                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: AppColors.successDark),
+                ),
+              ),
+              Text(
+                '≈ ${Formatters.fcfa(fcfa)} • réglé en Lightning ⚡',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.successSoft,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.shield_rounded, color: AppColors.success, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'PREUVE DE LIVRAISON SÉCURISÉE',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.success, letterSpacing: 0.5),
+                    const Row(
+                      children: [
+                        Icon(Icons.shield_rounded, color: AppColors.successDark, size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'PREUVE DE LIVRAISON SÉCURISÉE',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11.5,
+                              color: AppColors.successDark,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Fonds reçus de façon irrévocable. Aucun risque de rejet : remettez la marchandise en toute confiance.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textBody, height: 1.35),
+                    ),
+                    if (preimage != null && preimage.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Preimage (preuve cryptographique)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  SelectableText(
+                                    preimage,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontFamily: 'monospace',
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Copier la preimage',
+                              icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primary),
+                              onPressed: () => _copy(preimage, 'Preimage copiée !'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Fonds débloqués de façon irrévocable (Zero-Conf). Aucun risque de chargeback. Le commerçant peut remettre la marchandise en toute confiance.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Réf. ${_invoiceReference ?? '-'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 54,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
+            icon: const Icon(Icons.verified_rounded, size: 20),
+            label: const Text('Partager la preuve de livraison', maxLines: 1, overflow: TextOverflow.ellipsis),
+            onPressed: _shareProof,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 54,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Nouvelle vente', maxLines: 1, overflow: TextOverflow.ellipsis),
+            onPressed: _resetToInput,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChannelOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ChannelOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: selected
+              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: selected ? color : AppColors.textMuted),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? color : AppColors.textSecondary,
                 ),
-                if (_preimage != null) ...[
-                  const SizedBox(height: 10),
-                  const Text('Preimage (Preuve Cryptographique) :', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  SelectableText(
-                    _preimage!,
-                    style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.primary, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text('Réf Commande : $_invoiceReference', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-          const SizedBox(height: 22),
-
-          // BOUTON PARTAGE DU REÇU SUR WHATSAPP
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.whatsapp,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              icon: const Icon(Icons.share_rounded, size: 18),
-              label: const Text('PARTAGER LE REÇU DE LIVRAISON WHATSAPP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              onPressed: () {
-                WhatsappShareModal.show(
-                  context,
-                  title: _descController.text,
-                  amountText: amountText,
-                  reference: _invoiceReference ?? 'N/A',
-                  bolt11OrPreimage: _preimage ?? 'Preimage confirmée',
-                  isDeliveryReceipt: true,
-                );
-              },
             ),
-          ),
-          const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-          // BOUTON NOUVEAU PAIEMENT
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: () {
-                setState(() {
-                  _bolt11Invoice = null;
-                  _invoiceReference = null;
-                  _isPaid = false;
-                  _preimage = null;
-                });
-              },
-              child: const Text('NOUVELLE TRANSACTION ⚡', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+class _KeypadButton extends StatelessWidget {
+  final String label;
+  final bool isBackspace;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _KeypadButton({
+    required this.label,
+    required this.onTap,
+    this.isBackspace = false,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(3),
+      child: Material(
+        color: isBackspace ? AppColors.surfaceMuted : AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            height: 54,
+            child: Center(
+              child: isBackspace
+                  ? const Icon(Icons.backspace_outlined, color: AppColors.textBody, size: 22)
+                  : Text(
+                      label,
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                    ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

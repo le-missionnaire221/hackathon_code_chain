@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
+import 'common/app_bottom_sheet.dart';
 
 class WhatsappShareModal extends StatefulWidget {
   final String title;
@@ -26,11 +27,9 @@ class WhatsappShareModal extends StatefulWidget {
     required String bolt11OrPreimage,
     bool isDeliveryReceipt = false,
   }) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => WhatsappShareModal(
+    AppBottomSheet.show(
+      context,
+      WhatsappShareModal(
         title: title,
         amountText: amountText,
         reference: reference,
@@ -70,137 +69,152 @@ ${widget.bolt11OrPreimage}''';
     }
   }
 
+  String get _phoneDigits => _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+  String get _waLink => 'https://wa.me/$_phoneDigits?text=${Uri.encodeComponent(_formattedMessage)}';
+
   @override
   void dispose() {
     _phoneController.dispose();
     super.dispose();
   }
 
+  void _copyAndClose(String value, String message) {
+    Clipboard.setData(ClipboardData(text: value));
+    HapticFeedback.mediumImpact();
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.whatsappDark),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDelivery = widget.isDeliveryReceipt;
+    final hasPhone = _phoneDigits.length >= 8;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 18),
-
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isDelivery ? AppColors.successLight : const Color(0xFFE8F8EE),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    isDelivery ? Icons.verified_rounded : Icons.chat_bubble_outline_rounded,
-                    color: isDelivery ? AppColors.success : AppColors.whatsapp,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isDelivery ? 'Partage Preuve de Livraison 🛡️' : 'Facturation WhatsApp 📲',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      ),
-                      Text(
-                        isDelivery ? 'Garantie anti-arnaque pour le client' : 'Vente à distance sans carte bancaire',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Aperçu du message WhatsApp
-            const Text('Aperçu du message pour le client :', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-            const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.all(14),
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
+                gradient: isDelivery ? AppColors.successGradient : AppColors.whatsappGradient,
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: SelectableText(
-                _formattedMessage,
-                style: const TextStyle(fontSize: 12, height: 1.4, color: AppColors.textPrimary, fontFamily: 'monospace'),
-              ),
-            ),
-            const SizedBox(height: 18),
-
-            // Champ optionnel pour le numéro WhatsApp
-            const Text('Numéro WhatsApp du client (optionnel) :', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                hintText: 'ex: 221771234567 ou 33612345678',
-                hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                filled: true,
-                fillColor: AppColors.background,
-                prefixIcon: const Icon(Icons.phone_iphone_rounded, color: AppColors.whatsapp, size: 20),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+              child: Icon(
+                isDelivery ? Icons.verified_rounded : Icons.chat_rounded,
+                color: Colors.white,
+                size: 24,
               ),
             ),
-            const SizedBox(height: 22),
-
-            // Boutons d'action
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.whatsapp,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    icon: const Icon(Icons.copy_rounded, size: 18),
-                    label: const Text('COPIER LE MESSAGE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: _formattedMessage));
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Message WhatsApp copié ! Collez-le dans votre discussion.'),
-                          backgroundColor: AppColors.whatsappDark,
-                        ),
-                      );
-                    },
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isDelivery ? 'Preuve de livraison' : 'Facture WhatsApp',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    isDelivery ? 'Garantie anti-arnaque pour le client' : 'Vente à distance sans carte bancaire',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 20),
+
+        const Text(
+          'APERÇU DU MESSAGE',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.8),
+        ),
+        const SizedBox(height: 8),
+        // Bulle façon WhatsApp, hauteur limitée et scrollable
+        Container(
+          constraints: const BoxConstraints(maxHeight: 220),
+          decoration: BoxDecoration(
+            color: AppColors.whatsappLight,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(4),
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+            ),
+            border: Border.all(color: AppColors.whatsapp.withValues(alpha: 0.25)),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(14),
+            child: SelectableText(
+              _formattedMessage,
+              style: const TextStyle(fontSize: 12.5, height: 1.45, color: AppColors.textPrimary),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        TextField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.done,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: 'Numéro WhatsApp du client (optionnel)',
+            hintText: 'ex : 221771234567',
+            prefixIcon: Icon(Icons.phone_iphone_rounded, color: AppColors.whatsapp, size: 20),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        SizedBox(
+          height: 52,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
+            icon: const Icon(Icons.copy_rounded, size: 18),
+            label: const Text('Copier le message', maxLines: 1, overflow: TextOverflow.ellipsis),
+            onPressed: () => _copyAndClose(
+              _formattedMessage,
+              'Message copié ! Collez-le dans la discussion WhatsApp.',
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          child: hasPhone
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.whatsappDark,
+                        side: BorderSide(color: AppColors.whatsapp.withValues(alpha: 0.5)),
+                      ),
+                      icon: const Icon(Icons.link_rounded, size: 18),
+                      label: const Text('Copier le lien wa.me direct', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onPressed: () => _copyAndClose(
+                        _waLink,
+                        'Lien wa.me copié ! Ouvrez-le pour écrire directement au client.',
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
     );
   }
 }

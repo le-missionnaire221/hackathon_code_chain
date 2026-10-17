@@ -1,10 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
+import '../core/utils/formatters.dart';
 import '../models/transaction_item.dart';
-import '../widgets/transaction_card.dart';
-import '../widgets/receipt_bottom_sheet.dart';
 import '../widgets/blink_address_sheet.dart';
+import '../widgets/common/empty_state.dart';
+import '../widgets/common/status_pill.dart';
+import '../widgets/receipt_bottom_sheet.dart';
+import '../widgets/transaction_card.dart';
 
 class WalletTab extends StatelessWidget {
   final int balanceSats;
@@ -38,265 +41,454 @@ class WalletTab extends StatelessWidget {
     required this.onNavigateToHistory,
   });
 
+  static const TextStyle _balanceStyle = TextStyle(
+    fontSize: 38,
+    fontWeight: FontWeight.w900,
+    color: Colors.white,
+    letterSpacing: -0.8,
+  );
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      bottom: false,
       child: RefreshIndicator(
         onRefresh: onRefresh,
         color: AppColors.primary,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top Bar : Profil & Statut du Nœud
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.avatarGradient,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            AppConstants.developerInitials,
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(AppConstants.developerName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          Text(AppConstants.hackathonLocation, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isBackendOnline ? AppColors.successLight : AppColors.errorLight,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: (isBackendOnline ? AppColors.success : AppColors.error).withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.circle, color: isBackendOnline ? AppColors.success : AppColors.error, size: 8),
-                        const SizedBox(width: 6),
-                        Text(
-                          isBackendOnline ? 'Bitnob Actif ⚡' : 'Hors Ligne',
-                          style: TextStyle(color: isBackendOnline ? AppColors.success : AppColors.error, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-
-              // Carte Principale du Solde en Dégradé Neobank
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: AppColors.walletGradient,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'SOLDE RÉEL BITNOB (TESTNET)',
-                          style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                        ),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: Icon(
-                            isBalanceVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: Colors.white70,
-                            size: 20,
-                          ),
-                          onPressed: onToggleBalanceVisibility,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    isLoading
-                        ? const SizedBox(
-                            height: 38,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                            ),
-                          )
-                        : Text(
-                            isBalanceVisible ? '${balanceFcfa.toStringAsFixed(0)} FCFA' : '•••••••• FCFA',
-                            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
-                          ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(8)),
-                          child: Text(
-                            isBalanceVisible ? '$balanceSats SATS ⚡' : '•••• SATS',
-                            style: const TextStyle(color: AppColors.lightningGold, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('1 BTC ≈ ${(btcPriceFcfa / 1000000).toStringAsFixed(1)}M FCFA', style: const TextStyle(color: Colors.white60, fontSize: 11)),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Actions Rapides
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildQuickActionButton(
-                          icon: Icons.bolt_rounded,
-                          label: 'Encaisser',
-                          color: AppColors.lightningGold,
-                          onTap: onNavigateToPos,
-                        ),
-                        _buildQuickActionButton(
-                          icon: Icons.sync_rounded,
-                          label: 'Actualiser',
-                          color: Colors.white,
-                          onTap: onRefresh,
-                        ),
-                        _buildQuickActionButton(
-                          icon: Icons.qr_code_rounded,
-                          label: 'Adresse Blink',
-                          color: Colors.white,
-                          onTap: () => BlinkAddressSheet.show(context),
-                        ),
-                        _buildQuickActionButton(
-                          icon: Icons.receipt_long_rounded,
-                          label: 'Reçus',
-                          color: Colors.white,
-                          onTap: onNavigateToHistory,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Bannière Réelle Bitnob
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.verified_user_rounded, color: AppColors.primary, size: 28),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Règlement Réel Bitnob', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                          Text('$paidInvoicesCount / $totalInvoicesCount factures Lightning réglées avec Preimage', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // En-tête des dernières transactions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Dernières Factures Bitnob', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  TextButton(
-                    onPressed: onNavigateToHistory,
-                    child: const Text('Tout voir', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              if (transactions.isEmpty && !isLoading)
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'Aucune facture générée pour le moment.\nAllez dans "Encaisser ⚡" pour créer votre premier paiement !',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                  ),
-                )
-              else
-                ...transactions.take(4).map(
-                      (tx) => TransactionCard(
-                        transaction: tx,
-                        onTap: () => ReceiptBottomSheet.show(context, tx),
-                      ),
-                    ),
-            ],
-          ),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 20),
+            _buildBalanceCard(context),
+            const SizedBox(height: 16),
+            _buildStatsRow(),
+            const SizedBox(height: 26),
+            _buildSectionHeader(),
+            const SizedBox(height: 8),
+            ..._buildTransactions(context),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildQuickActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  // ───────────────────────── En-tête profil ─────────────────────────
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: AppColors.avatarGradient,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: const Text(
+            AppConstants.developerInitials,
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bonjour 👋',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+              ),
+              SizedBox(height: 2),
+              Text(
+                AppConstants.developerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        StatusPill(
+          label: isBackendOnline ? 'Bitnob actif' : 'Hors ligne',
+          tone: isBackendOnline ? PillTone.success : PillTone.error,
+          showDot: true,
+        ),
+      ],
+    );
+  }
+
+  // ───────────────────────── Carte solde ─────────────────────────
+  Widget _buildBalanceCard(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppColors.walletGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 30, offset: const Offset(0, 14)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Positioned(top: -70, right: -50, child: _glow(200, 0.10)),
+            Positioned(bottom: -80, left: -40, child: _glow(170, 0.07)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.bolt_rounded, color: AppColors.lightningGold, size: 18),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'SOLDE MARCHAND • BITNOB TESTNET',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: onToggleBalanceVisibility,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Icon(
+                            isBalanceVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Montant principal en FCFA : FittedBox = jamais d'overflow
+                  SizedBox(
+                    height: 50,
+                    width: double.infinity,
+                    child: isLoading && balanceSats == 0
+                        ? const Align(
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            ),
+                          )
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: isBalanceVisible
+                                ? TweenAnimationBuilder<double>(
+                                    tween: Tween(begin: 0, end: balanceFcfa),
+                                    duration: const Duration(milliseconds: 900),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, value, child) =>
+                                        Text(Formatters.fcfa(value), style: _balanceStyle),
+                                  )
+                                : const Text('••••••\u00A0FCFA', style: _balanceStyle),
+                          ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Double montant : SATS (épargne) + taux BTC
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          isBalanceVisible ? '⚡ ${Formatters.sats(balanceSats)}' : '⚡ ••••\u00A0SATS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.lightningGold,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '1 BTC ≈ ${Formatters.compactFcfa(btcPriceFcfa)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white60, fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.bolt_rounded,
+                          label: 'Encaisser',
+                          highlight: true,
+                          onTap: onNavigateToPos,
+                        ),
+                      ),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.qr_code_2_rounded,
+                          label: 'Recevoir',
+                          onTap: () => BlinkAddressSheet.show(context),
+                        ),
+                      ),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.receipt_long_rounded,
+                          label: 'Reçus',
+                          onTap: onNavigateToHistory,
+                        ),
+                      ),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.refresh_rounded,
+                          label: 'Actualiser',
+                          onTap: onRefresh,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _glow(double size, double opacity) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: opacity),
+      ),
+    );
+  }
+
+  // ───────────────────────── Statistiques ─────────────────────────
+  Widget _buildStatsRow() {
+    final ratio = totalInvoicesCount == 0 ? 0.0 : paidInvoicesCount / totalInvoicesCount;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _StatCard(
+            icon: Icons.verified_rounded,
+            iconColor: AppColors.success,
+            title: 'Factures réglées',
+            value: '$paidInvoicesCount / $totalInvoicesCount',
+            footer: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 6,
+                backgroundColor: AppColors.surfaceMuted,
+                color: AppColors.success,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.savings_rounded,
+            iconColor: AppColors.amber,
+            title: 'Épargne en SATS',
+            value: isBalanceVisible ? Formatters.thousands(balanceSats) : '••••',
+            footer: const Text(
+              'Protégée de l\'inflation',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ───────────────────────── Transactions ─────────────────────────
+  Widget _buildSectionHeader() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Dernières factures',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+          ),
+        ),
+        TextButton(
+          onPressed: onNavigateToHistory,
+          child: const Text('Tout voir'),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildTransactions(BuildContext context) {
+    if (transactions.isEmpty && isLoading) {
+      return const [SkeletonCard(), SkeletonCard(), SkeletonCard()];
+    }
+    if (transactions.isEmpty) {
+      return [
+        EmptyState(
+          icon: Icons.bolt_rounded,
+          title: 'Aucune facture pour le moment',
+          message: 'Créez votre premier encaissement Lightning en quelques secondes.',
+          actionLabel: 'Encaisser maintenant',
+          onAction: onNavigateToPos,
+        ),
+      ];
+    }
+    return transactions
+        .take(4)
+        .map((tx) => TransactionCard(
+              transaction: tx,
+              onTap: () => ReceiptBottomSheet.show(context, tx),
+            ))
+        .toList();
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool highlight;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Column(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: highlight ? AppColors.lightningGold : Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: highlight ? 0 : 0.22)),
+              ),
+              child: Icon(icon, color: highlight ? AppColors.sapphire : Colors.white, size: 24),
             ),
-            child: Icon(icon, color: color, size: 24),
+            const SizedBox(height: 7),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String value;
+  final Widget footer;
+
+  const _StatCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.value,
+    required this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 16, color: iconColor),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          footer,
         ],
       ),
     );

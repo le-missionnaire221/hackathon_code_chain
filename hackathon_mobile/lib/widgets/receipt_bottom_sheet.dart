@@ -1,136 +1,169 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
+import '../core/utils/formatters.dart';
 import '../models/transaction_item.dart';
+import 'common/app_bottom_sheet.dart';
+import 'common/info_row.dart';
+import 'common/status_pill.dart';
+import 'whatsapp_share_modal.dart';
 
 class ReceiptBottomSheet extends StatelessWidget {
   final TransactionItem transaction;
+  final BuildContext parentContext;
 
-  const ReceiptBottomSheet({super.key, required this.transaction});
+  const ReceiptBottomSheet({
+    super.key,
+    required this.transaction,
+    required this.parentContext,
+  });
 
   static void show(BuildContext context, TransactionItem transaction) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => ReceiptBottomSheet(transaction: transaction),
+    AppBottomSheet.show(
+      context,
+      ReceiptBottomSheet(transaction: transaction, parentContext: context),
+    );
+  }
+
+  void _copy(BuildContext context, String value, String message) {
+    Clipboard.setData(ClipboardData(text: value));
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.primary),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 44,
-            height: 4,
-            decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-          ),
-          const SizedBox(height: 20),
-          Container(
+    final (statusLabel, tone) = StatusPill.fromTransactionStatus(transaction.status);
+    final hasPreimage = transaction.preimage != null && transaction.preimage!.isNotEmpty;
+    final hasRequest = transaction.request != null && transaction.request!.isNotEmpty;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: Container(
             width: 60,
             height: 60,
-            decoration: const BoxDecoration(color: AppColors.chipBackground, shape: BoxShape.circle),
-            child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 30),
-          ),
-          const SizedBox(height: 12),
-          const Text('Reçu Réel Lightning Bitnob', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          Text(transaction.status, style: const TextStyle(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 16),
-          Text(
-            '+${transaction.amountSats} SATS',
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.primary),
-          ),
-          Text('≈ ${transaction.amountFcfa.toStringAsFixed(0)} FCFA', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              gradient: tone == PillTone.success ? AppColors.successGradient : null,
+              color: tone == PillTone.success ? null : AppColors.surfaceMuted,
+              shape: BoxShape.circle,
             ),
-            child: Column(
-              children: [
-                _buildReceiptRow('Description', transaction.title),
-                const Divider(height: 16, color: AppColors.border),
-                _buildReceiptRow('Référence', transaction.reference, isMonospace: true),
-                const Divider(height: 16, color: AppColors.border),
-                _buildReceiptRow(
-                  'Identifiant Bitnob',
-                  transaction.id.length > 14 ? '${transaction.id.substring(0, 14)}...' : transaction.id,
-                  isMonospace: true,
-                ),
-                const Divider(height: 16, color: AppColors.border),
-                _buildReceiptRow('Horodatage', transaction.date.toString().substring(0, 16)),
-                if (transaction.preimage != null && transaction.preimage!.isNotEmpty) ...[
-                  const Divider(height: 16, color: AppColors.border),
-                  _buildReceiptRow('Preimage (Preuve)', '${transaction.preimage!.substring(0, 14)}...', isMonospace: true),
-                ],
-              ],
+            child: Icon(
+              tone == PillTone.success ? Icons.check_rounded : Icons.receipt_long_rounded,
+              color: tone == PillTone.success ? Colors.white : AppColors.textSecondary,
+              size: 30,
             ),
           ),
-          const SizedBox(height: 20),
-          Row(
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Reçu Lightning',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 6),
+        Center(child: StatusPill(label: statusLabel, tone: tone)),
+        const SizedBox(height: 16),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '+${Formatters.sats(transaction.amountSats)}',
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: AppColors.primary),
+          ),
+        ),
+        Text(
+          '≈ ${Formatters.fcfa(transaction.amountFcfa)}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
             children: [
-              if (transaction.request != null && transaction.request!.isNotEmpty)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.primary),
-                    label: const Text('Copier BOLT11', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: transaction.request!));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Facture BOLT11 copiée !'), backgroundColor: AppColors.primary),
-                      );
-                    },
-                  ),
-                ),
-              if (transaction.request != null && transaction.request!.isNotEmpty) const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('FERMER', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
+              InfoRow(label: 'Description', value: transaction.title),
+              const Divider(),
+              InfoRow(
+                label: 'Référence',
+                value: transaction.reference,
+                monospace: true,
+                onCopy: () => _copy(context, transaction.reference, 'Référence copiée !'),
               ),
+              const Divider(),
+              InfoRow(
+                label: 'ID Bitnob',
+                value: Formatters.shortHash(transaction.id),
+                monospace: true,
+                onCopy: () => _copy(context, transaction.id, 'Identifiant Bitnob copié !'),
+              ),
+              const Divider(),
+              InfoRow(label: 'Date', value: Formatters.dateTime(transaction.date)),
+              if (hasPreimage) ...[
+                const Divider(),
+                InfoRow(
+                  label: 'Preimage (preuve)',
+                  value: Formatters.shortHash(transaction.preimage!),
+                  monospace: true,
+                  valueColor: AppColors.successDark,
+                  onCopy: () => _copy(context, transaction.preimage!, 'Preimage copiée !'),
+                ),
+              ],
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReceiptRow(String label, String value, {bool isMonospace = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-            fontFamily: isMonospace ? 'monospace' : null,
+        ),
+        const SizedBox(height: 20),
+        if (hasPreimage) ...[
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
+            icon: const Icon(Icons.verified_rounded, size: 18),
+            label: const Text(
+              'Partager la preuve de paiement',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              if (!parentContext.mounted) return;
+              WhatsappShareModal.show(
+                parentContext,
+                title: transaction.title,
+                amountText: '${Formatters.sats(transaction.amountSats)} (≈ ${Formatters.fcfa(transaction.amountFcfa)})',
+                reference: transaction.reference,
+                bolt11OrPreimage: transaction.preimage!,
+                isDeliveryReceipt: true,
+              );
+            },
           ),
+          const SizedBox(height: 10),
+        ],
+        Row(
+          children: [
+            if (hasRequest) ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text('Copier BOLT11', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  onPressed: () => _copy(context, transaction.request!, 'Facture BOLT11 copiée !'),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fermer', maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
         ),
       ],
     );

@@ -1,6 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
+import '../core/utils/formatters.dart';
 import '../models/transaction_item.dart';
 import 'wallet_tab.dart';
 import 'pos_tab.dart';
@@ -38,38 +41,39 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Future<void> _fetchRealWalletData() async {
+    if (_isLoadingWallet) return;
     setState(() => _isLoadingWallet = true);
     final wallet = await ApiService.getWalletData(backendUrl);
-    if (wallet != null) {
-      setState(() {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingWallet = false;
+      if (wallet != null) {
         _balanceSats = wallet.balanceSats;
         _balanceFcfa = wallet.balanceFcfa;
         _btcPriceFcfa = wallet.btcPriceFcfa;
         _paidInvoicesCount = wallet.paidInvoicesCount;
         _totalInvoicesCount = wallet.totalInvoices;
         _transactions = wallet.transactions;
-        _isLoadingWallet = false;
         _isBackendOnline = true;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoadingWallet = false;
+      }
     });
   }
 
   Future<void> _testBackendPing() async {
     final latency = await ApiService.pingBackend(backendUrl);
+    if (!mounted) return;
     setState(() {
-      if (latency != null) {
-        _backendPingLatency = latency;
-        _isBackendOnline = true;
-      } else {
-        _backendPingLatency = 'Inaccessible';
-        _isBackendOnline = false;
-      }
+      _backendPingLatency = latency ?? 'Inaccessible';
+      _isBackendOnline = latency != null;
     });
+  }
+
+  void _goTo(int index) {
+    if (index == _currentIndex) return;
+    HapticFeedback.selectionClick();
+    setState(() => _currentIndex = index);
+    if (index == 0 || index == 2) _fetchRealWalletData();
   }
 
   @override
@@ -90,18 +94,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             transactions: _transactions,
             onToggleBalanceVisibility: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
             onRefresh: _fetchRealWalletData,
-            onNavigateToPos: () => setState(() => _currentIndex = 1),
-            onNavigateToHistory: () => setState(() => _currentIndex = 2),
+            onNavigateToPos: () => _goTo(1),
+            onNavigateToHistory: () => _goTo(2),
           ),
           PosTab(
             backendUrl: backendUrl,
             onPaymentReceived: (sats, ref, preimage, desc) {
               _fetchRealWalletData();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('⚡ +${Formatters.sats(sats)} reçus — $desc'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
             },
           ),
           HistoryTab(
             transactions: _transactions,
+            isLoading: _isLoadingWallet,
             onRefresh: _fetchRealWalletData,
+            onNavigateToPos: () => _goTo(1),
           ),
           SettingsTab(
             backendUrl: backendUrl,
@@ -119,38 +131,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1)),
+          border: Border(top: BorderSide(color: AppColors.border)),
         ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() => _currentIndex = index);
-            if (index == 0 || index == 2) {
-              _fetchRealWalletData();
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: _goTo,
+          destinations: const [
+            NavigationDestination(
               icon: Icon(Icons.account_balance_wallet_outlined),
-              activeIcon: Icon(Icons.account_balance_wallet_rounded),
-              label: 'Portefeuille',
+              selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+              label: 'Accueil',
             ),
-            BottomNavigationBarItem(
+            NavigationDestination(
               icon: Icon(Icons.bolt_outlined),
-              activeIcon: Icon(Icons.bolt_rounded),
-              label: 'Encaisser ⚡',
+              selectedIcon: Icon(Icons.bolt_rounded),
+              label: 'Encaisser',
             ),
-            BottomNavigationBarItem(
+            NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
-              activeIcon: Icon(Icons.receipt_long_rounded),
+              selectedIcon: Icon(Icons.receipt_long_rounded),
               label: 'Reçus',
             ),
-            BottomNavigationBarItem(
+            NavigationDestination(
               icon: Icon(Icons.tune_outlined),
-              activeIcon: Icon(Icons.tune_rounded),
+              selectedIcon: Icon(Icons.tune_rounded),
               label: 'Réglages',
             ),
           ],
