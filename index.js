@@ -263,7 +263,7 @@ app.post('/invoice/:reference/pay', (req, res) => {
   });
 });
 
-// === PAGE WEB DE PAIEMENT SÉCURISÉ & DÉLIVRANCE DU CODE SECRET CLIENT ===
+// === PAGE WEB DE PAIEMENT SÉCURISÉ (ADAPTATIVE MOBILE & PC) ===
 app.get('/pay/:reference', (req, res) => {
   const { reference } = req.params;
   const invoice = invoices.get(reference);
@@ -295,13 +295,15 @@ app.get('/pay/:reference', (req, res) => {
 
   const fcfaAmount = Math.round(invoice.amount * 6.0);
   const isEscrow = Boolean(invoice.isEscrow);
+  const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+  const isMobileServer = /mobile|iphone|ipod|android|blackberry|opera mini|iemobile|wpdesktop/i.test(userAgent);
 
   res.send(`
     <!DOCTYPE html>
     <html lang="fr">
     <head>
       <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
       <title>Paiement Sécurisé - PayChain Dakar</title>
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -312,13 +314,13 @@ app.get('/pay/:reference', (req, res) => {
           --card: #151922;
           --border: #222938;
           --primary: #F7931A;
-          --primary-glow: rgba(247, 147, 26, 0.2);
+          --primary-glow: rgba(247, 147, 26, 0.25);
           --success: #10B981;
-          --success-glow: rgba(16, 185, 129, 0.2);
+          --success-glow: rgba(16, 185, 129, 0.25);
           --text: #F1F5F9;
           --text-muted: #94A3B8;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         body {
           font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
           background: var(--bg);
@@ -330,13 +332,13 @@ app.get('/pay/:reference', (req, res) => {
           padding: 16px;
         }
         .container {
-          max-width: 430px;
+          max-width: 440px;
           width: 100%;
           background: var(--card);
           border: 1px solid var(--border);
-          border-radius: 24px;
+          border-radius: 26px;
           padding: 24px 20px;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
           position: relative;
           overflow: hidden;
         }
@@ -346,8 +348,8 @@ app.get('/pay/:reference', (req, res) => {
           top: -100px;
           left: 50%;
           transform: translateX(-50%);
-          width: 220px;
-          height: 220px;
+          width: 240px;
+          height: 240px;
           background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
           border-radius: 50%;
           pointer-events: none;
@@ -356,41 +358,80 @@ app.get('/pay/:reference', (req, res) => {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
         .brand {
           font-weight: 800;
           font-size: 15px;
-          letter-spacing: 0.5px;
           display: flex;
           align-items: center;
           gap: 6px;
           color: #fff;
         }
-        .badge {
+        .mode-toggle {
+          display: inline-flex;
+          background: #0E121A;
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          padding: 2px;
+          cursor: pointer;
+        }
+        .mode-btn {
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 10px;
+          border-radius: 16px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .mode-btn.active {
+          background: #232B3E;
+          color: #fff;
+        }
+
+        /* BANNIÈRE DE DÉTECTION APPAREIL */
+        .device-banner {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          font-size: 12px;
+          line-height: 1.4;
+          background: rgba(247, 147, 26, 0.08);
+          border: 1px solid rgba(247, 147, 26, 0.2);
+          color: #FDE68A;
+        }
+        .device-banner .icon {
+          font-size: 20px;
+          flex-shrink: 0;
+        }
+
+        /* INFOS COMMANDE */
+        .order-info {
+          background: #0E121A;
+          border: 1px solid var(--border);
+          border-radius: 18px;
+          padding: 16px;
+          margin-bottom: 18px;
+          text-align: center;
+        }
+        .order-badge {
           display: inline-flex;
           align-items: center;
           gap: 5px;
           font-size: 11px;
-          font-weight: 700;
-          padding: 5px 10px;
-          border-radius: 20px;
-          background: rgba(247, 147, 26, 0.12);
-          color: var(--primary);
-          border: 1px solid rgba(247, 147, 26, 0.25);
-        }
-        .badge.escrow {
+          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: 12px;
+          margin-bottom: 8px;
           background: rgba(16, 185, 129, 0.12);
           color: var(--success);
-          border-color: rgba(16, 185, 129, 0.25);
-        }
-        .order-info {
-          background: #0E121A;
-          border: 1px solid var(--border);
-          border-radius: 16px;
-          padding: 16px;
-          margin-bottom: 20px;
-          text-align: center;
+          border: 1px solid rgba(16, 185, 129, 0.25);
         }
         .order-title {
           font-size: 14px;
@@ -398,36 +439,20 @@ app.get('/pay/:reference', (req, res) => {
           margin-bottom: 4px;
         }
         .order-amount-fcfa {
-          font-size: 30px;
+          font-size: 32px;
           font-weight: 800;
           color: #fff;
           letter-spacing: -0.5px;
         }
         .order-amount-sats {
           font-size: 13px;
-          font-weight: 600;
+          font-weight: 700;
           color: var(--primary);
           margin-top: 2px;
           font-family: 'JetBrains Mono', monospace;
         }
-        .qr-wrapper {
-          background: #fff;
-          padding: 14px;
-          border-radius: 18px;
-          width: 240px;
-          height: 240px;
-          margin: 0 auto 20px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-        }
-        .qr-wrapper img {
-          width: 100%;
-          height: 100%;
-          border-radius: 8px;
-          display: block;
-        }
+
+        /* ACTIONS */
         .actions {
           display: flex;
           flex-direction: column;
@@ -435,35 +460,105 @@ app.get('/pay/:reference', (req, res) => {
         }
         .btn {
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 8px;
           padding: 14px 18px;
           border-radius: 14px;
-          font-weight: 700;
+          font-weight: 800;
           font-size: 14px;
           text-decoration: none;
           cursor: pointer;
           border: none;
           transition: all 0.2s ease;
           width: 100%;
+          text-align: center;
         }
         .btn-primary {
-          background: linear-gradient(135deg, #F7931A 0%, #E67E00 100%);
+          background: linear-gradient(135deg, #F7931A 0%, #D97706 100%);
           color: #fff;
-          box-shadow: 0 4px 14px rgba(247, 147, 26, 0.4);
+          box-shadow: 0 4px 16px rgba(247, 147, 26, 0.35);
         }
         .btn-primary:active { transform: scale(0.98); }
+        .btn-primary .subtext {
+          font-size: 11px;
+          font-weight: 600;
+          opacity: 0.9;
+          margin-top: 3px;
+        }
         .btn-secondary {
           background: #1C2230;
           color: #CBD5E1;
           border: 1px solid var(--border);
+          flex-direction: row;
+          gap: 8px;
         }
         .btn-secondary:active { background: #232B3E; }
+        .btn-demo {
+          background: rgba(16, 185, 129, 0.12);
+          color: #34D399;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          flex-direction: row;
+          gap: 8px;
+        }
+        .btn-demo:hover { background: rgba(16, 185, 129, 0.22); }
+
+        /* QR CODE PC */
+        .qr-card-pc {
+          background: #0E121A;
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          padding: 16px;
+          margin-bottom: 18px;
+          text-align: center;
+        }
+        .qr-wrapper {
+          background: #fff;
+          padding: 12px;
+          border-radius: 16px;
+          width: 220px;
+          height: 220px;
+          margin: 0 auto 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+        .qr-wrapper img {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+        .qr-instructions {
+          font-size: 12px;
+          color: var(--text-muted);
+          line-height: 1.4;
+        }
+
+        /* ACCORDÉON QR POUR MOBILE */
+        .qr-accordion {
+          margin-top: 8px;
+          text-align: center;
+        }
+        .accordion-toggle {
+          background: transparent;
+          border: none;
+          color: var(--text-muted);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          text-decoration: underline;
+          padding: 8px;
+        }
+        .accordion-content {
+          margin-top: 10px;
+          animation: fadeIn 0.3s ease-out;
+        }
+
         .guarantee-box {
-          margin-top: 20px;
+          margin-top: 18px;
           padding: 12px 14px;
-          border-radius: 12px;
+          border-radius: 14px;
           background: rgba(16, 185, 129, 0.08);
           border: 1px solid rgba(16, 185, 129, 0.2);
           font-size: 12px;
@@ -473,9 +568,8 @@ app.get('/pay/:reference', (req, res) => {
           align-items: flex-start;
           gap: 10px;
         }
-        .guarantee-box span { font-size: 16px; }
 
-        /* PAID & CODE STATE */
+        /* SUCCESS STATE */
         .paid-card {
           display: none;
           text-align: center;
@@ -486,20 +580,20 @@ app.get('/pay/:reference', (req, res) => {
           to { opacity: 1; transform: translateY(0); }
         }
         .shield-icon {
-          width: 68px;
-          height: 68px;
+          width: 72px;
+          height: 72px;
           border-radius: 50%;
           background: rgba(16, 185, 129, 0.15);
           border: 2px solid var(--success);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 32px;
+          font-size: 34px;
           margin: 10px auto 16px;
           box-shadow: 0 0 25px var(--success-glow);
         }
         .paid-title {
-          font-size: 20px;
+          font-size: 21px;
           font-weight: 800;
           color: #fff;
           margin-bottom: 6px;
@@ -512,9 +606,10 @@ app.get('/pay/:reference', (req, res) => {
         .code-box {
           background: linear-gradient(180deg, #1A2233 0%, #111622 100%);
           border: 2px dashed #10B981;
-          border-radius: 18px;
-          padding: 18px 16px;
+          border-radius: 20px;
+          padding: 20px 16px;
           margin-bottom: 20px;
+          position: relative;
         }
         .code-label {
           font-size: 11px;
@@ -526,11 +621,11 @@ app.get('/pay/:reference', (req, res) => {
         }
         .code-digits {
           font-family: 'JetBrains Mono', monospace;
-          font-size: 38px;
+          font-size: 40px;
           font-weight: 900;
           color: #fff;
           letter-spacing: 8px;
-          text-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+          text-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
         }
         .instructions-box {
           background: #0E121A;
@@ -543,9 +638,7 @@ app.get('/pay/:reference', (req, res) => {
           text-align: left;
           margin-bottom: 20px;
         }
-        .instructions-box strong {
-          color: #FBBF24;
-        }
+        .instructions-box strong { color: #FBBF24; }
         .status-chip {
           display: inline-flex;
           align-items: center;
@@ -562,6 +655,32 @@ app.get('/pay/:reference', (req, res) => {
           color: #34D399;
           border: 1px solid #10B981;
         }
+
+        /* TOAST */
+        #toast {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%) translateY(100px);
+          background: #1E293B;
+          color: #fff;
+          border: 1px solid var(--primary);
+          padding: 12px 20px;
+          border-radius: 14px;
+          font-size: 12.5px;
+          font-weight: 700;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+          opacity: 0;
+          transition: all 0.3s ease;
+          z-index: 999;
+          pointer-events: none;
+          max-width: 90%;
+          text-align: center;
+        }
+        #toast.show {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
       </style>
     </head>
     <body>
@@ -571,13 +690,35 @@ app.get('/pay/:reference', (req, res) => {
           <div class="brand">
             <span>⚡</span> PAYCHAIN DAKAR
           </div>
-          <div class="badge ${isEscrow ? 'escrow' : ''}">
-            ${isEscrow ? '🛡️ Séquestre Anti-Arnaque' : '⚡ Paiement Direct'}
+          <!-- Sélecteur d'appareil (permet de simuler Mobile ou PC en direct) -->
+          <div class="mode-toggle" title="Basculer entre l'affichage Smartphone et PC">
+            <button id="btn-mode-mobile" class="mode-btn" onclick="setDeviceMode('mobile')">📱 Mobile</button>
+            <button id="btn-mode-pc" class="mode-btn" onclick="setDeviceMode('pc')">💻 PC</button>
+          </div>
+        </div>
+
+        <!-- ZONE DÉTECTION APPAREIL -->
+        <div id="banner-mobile" class="device-banner">
+          <span class="icon">📱</span>
+          <div>
+            <strong>Vous êtes sur votre smartphone :</strong><br>
+            Pas besoin de scanner ! Ouvrez votre portefeuille en 1 clic.
+          </div>
+        </div>
+
+        <div id="banner-pc" class="device-banner" style="display: none; background: rgba(0, 82, 255, 0.08); border-color: rgba(0, 82, 255, 0.25); color: #93C5FD;">
+          <span class="icon">💻</span>
+          <div>
+            <strong>Vous êtes sur votre ordinateur :</strong><br>
+            Prenez votre smartphone et scannez le QR code ci-dessous.
           </div>
         </div>
 
         <!-- COMMANDE INFOS -->
         <div class="order-info">
+          <div class="order-badge">
+            ${isEscrow ? '🛡️ Séquestre Anti-Arnaque' : '⚡ Paiement Direct'}
+          </div>
           <div class="order-title">${invoice.description || 'Commande PayChain'}</div>
           <div class="order-amount-fcfa">${fcfaAmount.toLocaleString('fr-FR')} FCFA</div>
           <div class="order-amount-sats">⚡ ${invoice.amount.toLocaleString()} Satoshis</div>
@@ -585,28 +726,54 @@ app.get('/pay/:reference', (req, res) => {
 
         <!-- ZONE EN ATTENTE DE PAIEMENT -->
         <div id="pending-zone">
-          <div class="qr-wrapper">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(invoice.bolt11)}" alt="QR Code Lightning BOLT11" />
+
+          <!-- VUE PC : QR CODE MIS EN AVANT -->
+          <div id="view-pc" style="display: none;">
+            <div class="qr-card-pc">
+              <div class="qr-wrapper">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(invoice.bolt11)}" alt="QR Code Lightning BOLT11" />
+              </div>
+              <div class="qr-instructions">
+                Scannez avec <strong>Blink</strong>, <strong>Phoenix</strong>, <strong>Strike</strong>, <strong>WoS</strong> ou tout wallet Lightning
+              </div>
+            </div>
           </div>
 
+          <!-- ACTIONS PRINCIPALES -->
           <div class="actions">
-            <a class="btn btn-primary" href="lightning:${invoice.bolt11}">
-              ⚡ Payer avec Lightning Wallet
+            <!-- BOUTON DEEP LINK (Optimisé pour Mobile) -->
+            <a class="btn btn-primary" href="lightning:${invoice.bolt11}" onclick="handleDeepLink(event)">
+              <span>⚡ Payer avec mon Portefeuille Lightning</span>
+              <span class="subtext">Ouvre Blink, Phoenix, Strike, CashApp… en 1 clic</span>
             </a>
+
             <button class="btn btn-secondary" onclick="copyInvoice()">
               📋 <span id="copy-text">Copier la Facture Lightning</span>
             </button>
-            <button id="instant-pay-btn" class="btn btn-secondary" style="border-color: rgba(16, 185, 129, 0.4); color: #34D399; background: rgba(16, 185, 129, 0.1);" onclick="instantPay()">
-              🛡️ Confirmer le Règlement (Dépôt Séquestre Démo)
+
+            <button id="instant-pay-btn" class="btn btn-demo" onclick="instantPay()">
+              🛡️ Confirmer le Dépôt sous Séquestre (Démo 1-Clic)
             </button>
+          </div>
+
+          <!-- VUE MOBILE : ACCORDÉON POUR VOIR LE QR CODE SI BESOIN -->
+          <div id="view-mobile" class="qr-accordion">
+            <button class="accordion-toggle" onclick="toggleQr()">
+              📷 <span id="accordion-label">Vous avez un 2ème téléphone ? Afficher le QR Code ▼</span>
+            </button>
+            <div id="collapsible-qr" class="accordion-content" style="display: none;">
+              <div class="qr-wrapper">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(invoice.bolt11)}" alt="QR Code Lightning BOLT11" />
+              </div>
+            </div>
           </div>
 
           ${isEscrow ? `
             <div class="guarantee-box">
-              <span>🛡️</span>
+              <span style="font-size: 18px;">🛡️</span>
               <div>
-                <strong>Protection Acheteur 100% Garantie :</strong>
-                Vos fonds seront consignés sous séquestre sécurisé. Le vendeur ne sera payé que lorsque vous aurez inspecté et validé votre colis en mains propres !
+                <strong>Garantie Séquestre Acheteur :</strong>
+                Vos fonds sont consignés sous séquestre sécurisé. Le vendeur ne sera payé que lorsque vous aurez inspecté votre colis en mains propres !
               </div>
             </div>
           ` : ''}
@@ -635,17 +802,63 @@ app.get('/pay/:reference', (req, res) => {
         </div>
       </div>
 
+      <!-- TOAST DE NOTIFICATION -->
+      <div id="toast"></div>
+
       <script>
         const ref = "${reference}";
         const bolt11 = "${invoice.bolt11}";
         let isPaid = ${invoice.status === 'paid'};
+        let serverIsMobile = ${isMobileServer};
+
+        function showToast(msg) {
+          const t = document.getElementById('toast');
+          t.innerText = msg;
+          t.className = 'show';
+          setTimeout(() => { t.className = ''; }, 3000);
+        }
+
+        function setDeviceMode(mode) {
+          const isMobile = mode === 'mobile';
+          document.getElementById('btn-mode-mobile').className = 'mode-btn' + (isMobile ? ' active' : '');
+          document.getElementById('btn-mode-pc').className = 'mode-btn' + (!isMobile ? ' active' : '');
+
+          document.getElementById('banner-mobile').style.display = isMobile ? 'flex' : 'none';
+          document.getElementById('banner-pc').style.display = isMobile ? 'none' : 'flex';
+
+          document.getElementById('view-pc').style.display = isMobile ? 'none' : 'block';
+          document.getElementById('view-mobile').style.display = isMobile ? 'block' : 'none';
+        }
+
+        // Détection initiale intelligente
+        const clientIsMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        setDeviceMode(clientIsMobile ? 'mobile' : 'pc');
+
+        function toggleQr() {
+          const box = document.getElementById('collapsible-qr');
+          const lbl = document.getElementById('accordion-label');
+          if (box.style.display === 'none') {
+            box.style.display = 'block';
+            lbl.innerText = 'Masquer le QR Code ▲';
+          } else {
+            box.style.display = 'none';
+            lbl.innerText = 'Vous avez un 2ème téléphone ? Afficher le QR Code ▼';
+          }
+        }
 
         function copyInvoice() {
           navigator.clipboard.writeText(bolt11).then(() => {
             const btn = document.getElementById('copy-text');
             btn.innerText = 'Copié dans le presse-papier ! ✅';
+            showToast('Facture Lightning copiée ! Ouvrez votre wallet pour coller.');
             setTimeout(() => { btn.innerText = 'Copier la Facture Lightning'; }, 2500);
           });
+        }
+
+        function handleDeepLink(e) {
+          // Copie également la facture en arrière-plan pour assurer le coup
+          navigator.clipboard.writeText(bolt11).catch(() => {});
+          showToast('🚀 Lancement de votre portefeuille Lightning…');
         }
 
         async function instantPay() {
@@ -665,7 +878,7 @@ app.get('/pay/:reference', (req, res) => {
             if (btn) {
               btn.innerText = 'Erreur';
               setTimeout(() => {
-                btn.innerText = '🛡️ Confirmer le Règlement (Dépôt Séquestre Démo)';
+                btn.innerText = '🛡️ Confirmer le Dépôt sous Séquestre (Démo 1-Clic)';
                 btn.disabled = false;
               }, 2000);
             }
@@ -674,6 +887,8 @@ app.get('/pay/:reference', (req, res) => {
 
         function showPaid(code, escrowStatus) {
           document.getElementById('pending-zone').style.display = 'none';
+          document.getElementById('banner-mobile').style.display = 'none';
+          document.getElementById('banner-pc').style.display = 'none';
           const paidZone = document.getElementById('paid-zone');
           paidZone.style.display = 'block';
           if (code) {
@@ -690,7 +905,7 @@ app.get('/pay/:reference', (req, res) => {
           showPaid("${invoice.releaseCode || ''}", "${invoice.escrowStatus || ''}");
         }
 
-        // Sondage dynamique
+        // Sondage dynamique en temps réel
         setInterval(async () => {
           try {
             const res = await fetch('/invoice/' + ref + '/status');
