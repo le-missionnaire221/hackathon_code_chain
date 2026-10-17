@@ -3,7 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import { initDb, pool, getInvoice, createInvoiceRecord, listPendingInvoices, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, SAT_TO_FCFA } from './db.js';
+import { initDb, pool, getInvoice, createInvoiceRecord, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, SAT_TO_FCFA } from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
 import { mountAdmin } from './admin.js';
@@ -51,28 +51,9 @@ app.get('/health', async (req, res) => {
   }
 });
 
-async function reconcileInvoice(invoice) {
-  if (!invoice || invoice.status === 'paid' || !invoice.bitnobId) return invoice;
-  try {
-    const bitnobCheck = await bitnob('GET', `/api/lightning/invoices/${invoice.bitnobId}`);
-    if (bitnobCheck.data?.status === 'paid') {
-      const settled = await settleInvoice(invoice.reference, { preimage: bitnobCheck.data.preimage });
-      console.log(`✅ [BITNOB SETTLEMENT] ${invoice.reference} réglée. Code: ${settled?.releaseCode}`);
-      return settled;
-    }
-  } catch {
-    // Le polling suivant réessaiera.
-  }
-  return invoice;
-}
-
 // === PORTEFEUILLE DU COMPTE CONNECTÉ ===
 app.get('/wallet', requireAuth, async (req, res) => {
   try {
-    const pending = await listPendingInvoices(req.user.id);
-    for (const invoice of pending) {
-      await reconcileInvoice(invoice);
-    }
     res.json(await buildWalletPayload(req.user.id));
   } catch (err) {
     console.error('Erreur /wallet:', err);
@@ -142,7 +123,7 @@ app.get('/invoice/:reference/status', async (req, res) => {
   if (!invoice) {
     return res.status(404).json({ error: "Invoice non trouvée" });
   }
-  res.json(await reconcileInvoice(invoice));
+  res.json(invoice);
 });
 
 // === LECTURE D'UN QR LIGHTNING, D'UN LIEN OU D'UNE RÉFÉRENCE ===
@@ -198,18 +179,29 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
       });
     }
 
-    const reconciled = await reconcileInvoice(existing);
-    if (reconciled?.status === 'paid') {
-      return res.json({
-        success: true,
-        ...reconciled,
-        message: 'Paiement Lightning confirmé par Bitnob.'
-      });
+    const result = await payFromBuyerWallet(existing.reference, req.user.id);
+    if (result.error) {
+      return res.status(result.status || 400).json({ success: false, error: result.error });
     }
-
-    const reason = paid?.detail || paid?.message || paid?.error || 'Bitnob n’a pas confirmé le paiement Lightning.';
-    console.error('Paiement Bitnob refusé:', reason);
-    return res.status(400).json({ success: false, error: reason });
+    const invoice = result.invoice;
+    const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
+    console.log(`⚡ [PAIEMENT COMPTE] ${req.user.phone} → ${invoice.reference} (${fcfa} FCFA)`);
+    return res.json({
+      success: true,
+      reference: invoice.reference,
+      status: invoice.status,
+      amount: invoice.amount,
+      amountFcfa: fcfa,
+      description: invoice.description,
+      merchantName: invoice.merchantName,
+      isEscrow: invoice.isEscrow,
+      escrowStatus: invoice.escrowStatus,
+      releaseCode: invoice.releaseCode,
+      preimage: invoice.preimage,
+      message: result.already
+        ? 'Cette facture est déjà payée.'
+        : `${fcfa} FCFA débités de ce compte. ${invoice.merchantName} est crédité.`
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Paiement Lightning impossible' });
@@ -946,13 +938,7 @@ app.post('/webhook', async (req, res) => {
 
   const eventName = req.body.event || (req.body.test ? 'test' : 'inconnu');
   if (eventName === 'lightning.invoice.paid') {
-    const ref = req.body.data?.reference;
-    if (ref) {
-      const current = await getInvoice(ref);
-      if (current) {
-        await settleInvoice(ref, { preimage: req.body.data?.preimage || current.preimage });
-      }
-    }
+    console.log(`ℹ️ [BITNOB] Facture ${req.body.data?.reference || ''} marquée payée par le sandbox. En attente du compte acheteur.`);
   }
 
   res.sendStatus(200);
