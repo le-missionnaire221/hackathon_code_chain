@@ -1,0 +1,53 @@
+﻿class TransactionItem {
+  final String id;
+  final String reference;
+  final String title;
+  final String category;
+  final int amountSats;
+  final double amountFcfa;
+  final bool isCredit;
+  final DateTime date;
+  final String status;
+  final String? preimage;
+  final String? request;
+
+  TransactionItem({
+    required this.id,
+    required this.reference,
+    required this.title,
+    required this.category,
+    required this.amountSats,
+    required this.amountFcfa,
+    required this.isCredit,
+    required this.date,
+    required this.status,
+    this.preimage,
+    this.request,
+  });
+
+  factory TransactionItem.fromJson(Map<String, dynamic> json) {
+    DateTime parsedDate;
+    try {
+      parsedDate = DateTime.parse(json['date'] ?? '');
+    } catch (_) {
+      parsedDate = DateTime.now();
+    }
+
+    return TransactionItem(
+      id: json['id']?.toString() ?? '',
+      reference: json['reference']?.toString() ?? 'N/A',
+      title: json['title']?.toString() ?? 'Paiement Lightning',
+      category: json['category']?.toString() ?? 'Encaissement Marchand POS',
+      amountSats: (json['amountSats'] as num?)?.toInt() ?? 0,
+      amountFcfa: (json['amountFcfa'] as num?)?.toDouble() ?? 0.0,
+      isCredit: json['isCredit'] ?? true,
+      date: parsedDate,
+      status: json['status']?.toString() ?? 'Confirmé ⚡',
+      preimage: json['preimage']?.toString(),
+      request: json['request']?.toString(),
+    );
+  }
+
+  bool get isConfirmed =>
+      status.contains('Confirmé') || status.contains('paid');
+}
