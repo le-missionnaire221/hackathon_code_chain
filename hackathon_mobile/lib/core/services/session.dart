@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../constants/app_constants.dart';
 import 'api_service.dart';
 
 class Session {
@@ -21,13 +22,8 @@ class Session {
     phone = prefs.getString('phone');
     fullName = prefs.getString('fullName');
     role = prefs.getString('role');
-    backendUrl = prefs.getString('backendUrl');
-    if (backendUrl == null ||
-        backendUrl!.contains('localhost') ||
-        backendUrl!.contains('10.0.2.2')) {
-      backendUrl = 'https://hackathon-code-chain.onrender.com';
-      await prefs.setString('backendUrl', backendUrl!);
-    }
+    backendUrl = AppConstants.productionBackendUrl;
+    await prefs.setString('backendUrl', backendUrl!);
     ApiService.token = token;
     return token != null && token!.isNotEmpty;
   }
@@ -37,13 +33,12 @@ class Session {
     required String phone,
     required String fullName,
     required String role,
-    String? backendUrl,
   }) async {
     Session.token = token;
     Session.phone = phone;
     Session.fullName = fullName;
     Session.role = role;
-    if (backendUrl != null && backendUrl.isNotEmpty) Session.backendUrl = backendUrl;
+    Session.backendUrl = AppConstants.productionBackendUrl;
     ApiService.token = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', token);
@@ -53,12 +48,6 @@ class Session {
     if (Session.backendUrl != null) {
       await prefs.setString('backendUrl', Session.backendUrl!);
     }
-  }
-
-  static Future<void> rememberBackend(String url) async {
-    backendUrl = url;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('backendUrl', url);
   }
 
   static Future<void> clear() async {

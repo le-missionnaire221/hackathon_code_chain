@@ -1,8 +1,6 @@
 ﻿class AppConstants {
   // URLs du Backend
   static const String productionBackendUrl = 'https://hackathon-code-chain.onrender.com';
-  static const String defaultWebBackendUrl = 'http://localhost:5000';
-  static const String defaultAndroidBackendUrl = 'http://10.0.2.2:5000';
 
   static String get initialBackendUrl => productionBackendUrl;
 

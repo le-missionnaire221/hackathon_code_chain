@@ -22,7 +22,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-  String backendUrl = Session.backendUrl ?? AppConstants.initialBackendUrl;
+  String backendUrl = AppConstants.productionBackendUrl;
 
   bool _isBalanceVisible = true;
   bool _isLoadingWallet = false;
@@ -130,15 +130,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onNavigateToPos: () => _goTo(1),
           ),
           SettingsTab(
-            backendUrl: backendUrl,
             isBackendOnline: _isBackendOnline,
             backendPingLatency: _backendPingLatency,
-            onBackendUrlChanged: (newUrl) {
-              Session.rememberBackend(newUrl);
-              setState(() => backendUrl = newUrl);
-              _testBackendPing();
-              _fetchRealWalletData();
-            },
             onTestPing: () async {
               await _testBackendPing();
               await _fetchRealWalletData();

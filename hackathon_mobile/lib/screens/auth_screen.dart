@@ -18,7 +18,6 @@ class _AuthScreenState extends State<AuthScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
-  final _urlController = TextEditingController(text: AppConstants.initialBackendUrl);
   bool _isRegister = false;
   bool _isLoading = false;
   bool _obscure = true;
@@ -29,7 +28,6 @@ class _AuthScreenState extends State<AuthScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
-    _urlController.dispose();
     super.dispose();
   }
 
@@ -50,7 +48,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _error = null;
     });
 
-    final backendUrl = _urlController.text.trim().replaceAll(RegExp(r'/$'), '');
+    const backendUrl = AppConstants.productionBackendUrl;
     final data = _isRegister
         ? await ApiService.register(
             backendUrl,
@@ -77,7 +75,6 @@ class _AuthScreenState extends State<AuthScreen> {
       phone: user['phone']?.toString() ?? phone,
       fullName: user['fullName']?.toString() ?? _nameController.text.trim(),
       role: user['role']?.toString() ?? 'user',
-      backendUrl: backendUrl,
     );
     if (!mounted) return;
     HapticFeedback.mediumImpact();
@@ -134,14 +131,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   onPressed: () => setState(() => _obscure = !_obscure),
                   icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _urlController,
-              decoration: const InputDecoration(
-                labelText: 'Serveur',
-                prefixIcon: Icon(Icons.dns_rounded),
               ),
             ),
             if (_error != null) ...[

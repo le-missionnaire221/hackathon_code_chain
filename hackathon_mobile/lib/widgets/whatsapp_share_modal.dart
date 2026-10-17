@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
+import '../core/constants/app_constants.dart';
 import 'common/app_bottom_sheet.dart';
 
 class WhatsappShareModal extends StatefulWidget {
@@ -68,7 +69,7 @@ La remise du colis a été certifiée et les fonds sont définitivement libéré
     } else if (widget.isEscrow) {
       final payLink = widget.backendUrl != null && widget.backendUrl!.isNotEmpty
           ? '${widget.backendUrl}/pay/${widget.reference}'
-          : 'http://localhost:5000/pay/${widget.reference}';
+          : '${AppConstants.productionBackendUrl}/pay/${widget.reference}';
       return '''🛡️ *COMMANDE SOUS SÉQUESTRE SÉCURISÉ - PAYCHAIN DAKAR* 🇸🇳
 
 📦 *Article :* ${widget.title}
@@ -86,7 +87,7 @@ ${widget.bolt11OrPreimage}''';
     } else {
       final payLink = widget.backendUrl != null && widget.backendUrl!.isNotEmpty
           ? '${widget.backendUrl}/pay/${widget.reference}'
-          : 'http://localhost:5000/pay/${widget.reference}';
+          : '${AppConstants.productionBackendUrl}/pay/${widget.reference}';
       return '''⚡ *FACTURE SÉCURISÉE PAYCHAIN DAKAR* 🇸🇳
 
 📦 *Article :* ${widget.title}

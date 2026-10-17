@@ -386,7 +386,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  'Ce paiement va débiter ${Formatters.fcfa(fcfa)} de votre portefeuille PayChain, puis les créditer au marchand.',
+                  'Bitnob va régler ${Formatters.fcfa(fcfa)} sur Lightning. Le marchand est crédité seulement après confirmation Bitnob.',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.amberDark, height: 1.35),
                 ),
               ),

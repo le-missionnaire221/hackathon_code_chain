@@ -6,10 +6,8 @@ import '../widgets/common/info_row.dart';
 import '../widgets/common/status_pill.dart';
 
 class SettingsTab extends StatefulWidget {
-  final String backendUrl;
   final bool isBackendOnline;
   final String? backendPingLatency;
-  final Function(String newUrl) onBackendUrlChanged;
   final Future<void> Function() onTestPing;
   final String accountName;
   final String accountPhone;
@@ -17,10 +15,8 @@ class SettingsTab extends StatefulWidget {
 
   const SettingsTab({
     super.key,
-    required this.backendUrl,
     required this.isBackendOnline,
     required this.backendPingLatency,
-    required this.onBackendUrlChanged,
     required this.onTestPing,
     required this.accountName,
     required this.accountPhone,
@@ -32,29 +28,7 @@ class SettingsTab extends StatefulWidget {
 }
 
 class _SettingsTabState extends State<SettingsTab> {
-  late final TextEditingController _urlController;
   bool _isTestingPing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _urlController = TextEditingController(text: widget.backendUrl);
-  }
-
-  @override
-  void didUpdateWidget(covariant SettingsTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.backendUrl != widget.backendUrl &&
-        _urlController.text != widget.backendUrl) {
-      _urlController.text = widget.backendUrl;
-    }
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
-  }
 
   Future<void> _handleTestPing() async {
     setState(() => _isTestingPing = true);
@@ -70,20 +44,6 @@ class _SettingsTabState extends State<SettingsTab> {
               : 'Serveur inaccessible. Vérifiez le backend Node.js.',
         ),
         backgroundColor: widget.isBackendOnline ? AppColors.success : AppColors.error,
-      ),
-    );
-  }
-
-  void _applyUrl(String url) {
-    final clean = url.trim();
-    if (clean.isEmpty) return;
-    _urlController.text = clean;
-    widget.onBackendUrlChanged(clean);
-    HapticFeedback.selectionClick();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('URL enregistrée : $clean'),
-        backgroundColor: AppColors.primary,
       ),
     );
   }
@@ -253,7 +213,6 @@ class _SettingsTabState extends State<SettingsTab> {
           ),
           const SizedBox(height: 22),
 
-          // Configuration URL Backend
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -261,15 +220,15 @@ class _SettingsTabState extends State<SettingsTab> {
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: AppColors.border),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.link_rounded, size: 18, color: AppColors.primary),
+                    Icon(Icons.bolt_rounded, size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text(
-                      'SERVEUR BACKEND',
+                      'BITNOB SANDBOX',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -279,44 +238,10 @@ class _SettingsTabState extends State<SettingsTab> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _urlController,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: _applyUrl,
-                  decoration: InputDecoration(
-                    labelText: 'URL du serveur Express',
-                    hintText: 'http://localhost:5000',
-                    prefixIcon: const Icon(Icons.dns_rounded),
-                    suffixIcon: IconButton(
-                      tooltip: 'Enregistrer',
-                      icon: const Icon(Icons.check_circle_rounded, color: AppColors.primary),
-                      onPressed: () => _applyUrl(_urlController.text),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ActionChip(
-                      avatar: const Icon(Icons.cloud_done_rounded, size: 16),
-                      label: const Text('Serveur en ligne', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _applyUrl(AppConstants.productionBackendUrl),
-                    ),
-                    ActionChip(
-                      avatar: const Icon(Icons.language_rounded, size: 16),
-                      label: const Text('Web (localhost:5000)', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _applyUrl(AppConstants.defaultWebBackendUrl),
-                    ),
-                    ActionChip(
-                      avatar: const Icon(Icons.phone_android_rounded, size: 16),
-                      label: const Text('Android (10.0.2.2:5000)', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _applyUrl(AppConstants.defaultAndroidBackendUrl),
-                    ),
-                  ],
-                ),
+                SizedBox(height: 12),
+                InfoRow(label: 'Réseau', value: 'Lightning · sandbox'),
+                Divider(),
+                InfoRow(label: 'Serveur', value: 'En ligne, fixe'),
               ],
             ),
           ),

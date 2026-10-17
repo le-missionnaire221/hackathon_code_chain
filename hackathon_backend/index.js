@@ -3,7 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import { initDb, pool, getInvoice, createInvoiceRecord, listPendingInvoices, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, SAT_TO_FCFA } from './db.js';
+import { initDb, pool, getInvoice, createInvoiceRecord, listPendingInvoices, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, SAT_TO_FCFA } from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
 import { mountAdmin } from './admin.js';
@@ -154,35 +154,65 @@ app.post('/invoice/lookup', async (req, res) => {
   res.json(invoice);
 });
 
-// === PAIEMENT DEPUIS LE PORTEFEUILLE PAYCHAIN ===
+// === PAIEMENT LIGHTNING VIA BITNOB SANDBOX ===
 app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
   try {
-    const result = await payFromBuyerWallet(req.params.reference, req.user.id);
-    if (result.error) {
-      return res.status(result.status || 400).json({ success: false, error: result.error });
+    const existing = await getInvoice(req.params.reference);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Facture introuvable' });
     }
-    const invoice = result.invoice;
-    const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
-    console.log(`⚡ [PAIEMENT APP] ${req.user.phone} → ${invoice.reference} (${fcfa} FCFA)`);
-    res.json({
-      success: true,
-      reference: invoice.reference,
-      status: invoice.status,
-      amount: invoice.amount,
-      amountFcfa: fcfa,
-      description: invoice.description,
-      merchantName: invoice.merchantName,
-      isEscrow: invoice.isEscrow,
-      escrowStatus: invoice.escrowStatus,
-      releaseCode: invoice.releaseCode,
-      preimage: invoice.preimage,
-      message: result.already
-        ? 'Cette facture est déjà payée.'
-        : `${fcfa} FCFA débités de votre portefeuille. ${invoice.merchantName} est crédité.`
+    if (existing.userId === req.user.id) {
+      return res.status(400).json({ success: false, error: 'Vous ne pouvez pas payer votre propre QR code.' });
+    }
+    if (existing.status === 'paid') {
+      return res.json({ success: true, ...existing, message: 'Cette facture est déjà payée sur Lightning.' });
+    }
+    if (!existing.bolt11) {
+      return res.status(400).json({ success: false, error: 'Cette facture n’a pas de code Lightning Bitnob.' });
+    }
+
+    const request = existing.bolt11.replace(/^lightning:/i, '');
+    const paid = await bitnob('POST', '/api/lightning/pay', {
+      request,
+      reference: `PAY_${existing.reference}`,
     });
+
+    const bitnobStatus = paid?.data?.status;
+    const preimage = paid?.data?.preimage;
+    if (bitnobStatus === 'paid' && preimage) {
+      const invoice = await settleInvoice(existing.reference, { preimage });
+      const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
+      console.log(`⚡ [BITNOB PAY] ${existing.reference} réglée sur Lightning (${fcfa} FCFA)`);
+      return res.json({
+        success: true,
+        reference: invoice.reference,
+        status: invoice.status,
+        amount: invoice.amount,
+        amountFcfa: fcfa,
+        description: invoice.description,
+        isEscrow: invoice.isEscrow,
+        escrowStatus: invoice.escrowStatus,
+        releaseCode: invoice.releaseCode,
+        preimage: invoice.preimage,
+        message: `${fcfa} FCFA envoyés sur Lightning via Bitnob.`
+      });
+    }
+
+    const reconciled = await reconcileInvoice(existing);
+    if (reconciled?.status === 'paid') {
+      return res.json({
+        success: true,
+        ...reconciled,
+        message: 'Paiement Lightning confirmé par Bitnob.'
+      });
+    }
+
+    const reason = paid?.detail || paid?.message || paid?.error || 'Bitnob n’a pas confirmé le paiement Lightning.';
+    console.error('Paiement Bitnob refusé:', reason);
+    return res.status(400).json({ success: false, error: reason });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, error: 'Paiement impossible' });
+    res.status(500).json({ success: false, error: 'Paiement Lightning impossible' });
   }
 });
 
