@@ -4,6 +4,7 @@ import '../core/constants/app_constants.dart';
 import '../core/utils/formatters.dart';
 import '../models/transaction_item.dart';
 import '../widgets/blink_address_sheet.dart';
+import '../widgets/buyer_payment_sheet.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/status_pill.dart';
 import '../widgets/receipt_bottom_sheet.dart';
@@ -21,6 +22,7 @@ class WalletTab extends StatelessWidget {
   final bool isBalanceVisible;
   final bool isLoading;
   final bool isBackendOnline;
+  final String backendUrl;
   final List<TransactionItem> transactions;
   final VoidCallback onToggleBalanceVisibility;
   final Future<void> Function() onRefresh;
@@ -40,6 +42,7 @@ class WalletTab extends StatelessWidget {
     required this.isBalanceVisible,
     required this.isLoading,
     required this.isBackendOnline,
+    required this.backendUrl,
     required this.transactions,
     required this.onToggleBalanceVisibility,
     required this.onRefresh,
@@ -65,7 +68,7 @@ class WalletTab extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             const SizedBox(height: 20),
             _buildBalanceCard(context),
             if (escrowSats > 0) ...[
@@ -85,7 +88,7 @@ class WalletTab extends StatelessWidget {
   }
 
   // ───────────────────────── En-tête profil ─────────────────────────
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Row(
       children: [
         Container(
@@ -123,6 +126,28 @@ class WalletTab extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
               ),
             ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: () => BuyerPaymentSheet.show(
+            context,
+            backendUrl: backendUrl,
+            onPaymentSuccess: onRefresh,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.chipBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            child: const Icon(
+              Icons.qr_code_scanner_rounded,
+              size: 20,
+              color: AppColors.primary,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -261,6 +286,17 @@ class WalletTab extends StatelessWidget {
                       ),
                       Expanded(
                         child: _QuickAction(
+                          icon: Icons.shield_rounded,
+                          label: 'Payer 🛡️',
+                          onTap: () => BuyerPaymentSheet.show(
+                            context,
+                            backendUrl: backendUrl,
+                            onPaymentSuccess: onRefresh,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _QuickAction(
                           icon: Icons.qr_code_2_rounded,
                           label: 'Recevoir',
                           onTap: () => BlinkAddressSheet.show(context),
@@ -271,13 +307,6 @@ class WalletTab extends StatelessWidget {
                           icon: Icons.receipt_long_rounded,
                           label: 'Reçus',
                           onTap: onNavigateToHistory,
-                        ),
-                      ),
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.refresh_rounded,
-                          label: 'Actualiser',
-                          onTap: onRefresh,
                         ),
                       ),
                     ],

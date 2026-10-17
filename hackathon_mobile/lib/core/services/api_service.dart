@@ -106,6 +106,21 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>?> payInvoice(
+    String backendUrl,
+    String reference,
+  ) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$backendUrl/invoice/$reference/pay'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<String?> pingBackend(String backendUrl) async {
     final sw = Stopwatch()..start();
     try {

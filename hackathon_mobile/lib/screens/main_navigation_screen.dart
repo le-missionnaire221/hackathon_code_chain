@@ -105,6 +105,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onRefresh: _fetchRealWalletData,
             onNavigateToPos: () => _goTo(1),
             onNavigateToHistory: () => _goTo(2),
+            backendUrl: backendUrl,
           ),
           PosTab(
             backendUrl: backendUrl,

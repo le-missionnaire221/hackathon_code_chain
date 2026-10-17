@@ -224,6 +224,45 @@ app.get('/invoice/:reference/status', async (req, res) => {
   res.json(invoice);
 });
 
+// === RÈGLEMENT CLIENT DIRECT (DEPUIS L'APP OU LE BOUTON WEB) ===
+app.post('/invoice/:reference/pay', (req, res) => {
+  const { reference } = req.params;
+  const invoice = invoices.get(reference);
+  if (!invoice) {
+    return res.status(404).json({ success: false, error: "Facture introuvable" });
+  }
+
+  if (invoice.status === 'paid') {
+    return res.json({ success: true, message: "Déjà réglée", invoice });
+  }
+
+  invoice.status = 'paid';
+  invoice.paidAt = new Date().toISOString();
+  if (!invoice.preimage) {
+    invoice.preimage = crypto.randomBytes(32).toString('hex');
+  }
+  invoice.releaseCode = extractShortCode(invoice.preimage);
+
+  if (invoice.isEscrow) {
+    invoice.escrowStatus = 'locked';
+    console.log(`🔒 [PAIEMENT CLIENT APP/WEB] Commande ${reference} verrouillée sous séquestre ! Code secret: ${invoice.releaseCode}`);
+  } else {
+    console.log(`⚡ [PAIEMENT CLIENT APP/WEB] Commande ${reference} réglée avec succès !`);
+  }
+
+  invoices.set(reference, invoice);
+  res.json({
+    success: true,
+    reference,
+    status: invoice.status,
+    isEscrow: invoice.isEscrow,
+    escrowStatus: invoice.escrowStatus,
+    releaseCode: invoice.releaseCode,
+    preimage: invoice.preimage,
+    message: invoice.isEscrow ? "Fonds consignés sous séquestre !" : "Paiement direct validé !"
+  });
+});
+
 // === PAGE WEB DE PAIEMENT SÉCURISÉ & DÉLIVRANCE DU CODE SECRET CLIENT ===
 app.get('/pay/:reference', (req, res) => {
   const { reference } = req.params;
@@ -557,6 +596,9 @@ app.get('/pay/:reference', (req, res) => {
             <button class="btn btn-secondary" onclick="copyInvoice()">
               📋 <span id="copy-text">Copier la Facture Lightning</span>
             </button>
+            <button id="instant-pay-btn" class="btn btn-secondary" style="border-color: rgba(16, 185, 129, 0.4); color: #34D399; background: rgba(16, 185, 129, 0.1);" onclick="instantPay()">
+              🛡️ Confirmer le Règlement (Dépôt Séquestre Démo)
+            </button>
           </div>
 
           ${isEscrow ? `
@@ -604,6 +646,30 @@ app.get('/pay/:reference', (req, res) => {
             btn.innerText = 'Copié dans le presse-papier ! ✅';
             setTimeout(() => { btn.innerText = 'Copier la Facture Lightning'; }, 2500);
           });
+        }
+
+        async function instantPay() {
+          const btn = document.getElementById('instant-pay-btn');
+          if (btn) {
+            btn.innerText = 'Règlement en cours… ⏳';
+            btn.disabled = true;
+          }
+          try {
+            const res = await fetch('/invoice/' + ref + '/pay', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+              isPaid = true;
+              showPaid(data.releaseCode || data.invoice?.releaseCode, data.escrowStatus || data.invoice?.escrowStatus);
+            }
+          } catch(e) {
+            if (btn) {
+              btn.innerText = 'Erreur';
+              setTimeout(() => {
+                btn.innerText = '🛡️ Confirmer le Règlement (Dépôt Séquestre Démo)';
+                btn.disabled = false;
+              }, 2000);
+            }
+          }
         }
 
         function showPaid(code, escrowStatus) {
