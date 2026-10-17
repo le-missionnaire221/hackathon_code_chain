@@ -530,9 +530,7 @@ export async function buildWalletPayload(userId) {
     amountFcfa: Math.round(Math.abs(Number(entry.amount_sats)) * SAT_TO_FCFA),
     isCredit: Number(entry.amount_sats) >= 0,
     date: entry.created_at,
-    status: entry.kind === 'invoice_payment'
-      ? 'Payé ⚡'
-      : (Number(entry.amount_sats) >= 0 ? 'Crédit admin' : 'Débit admin'),
+    status: 'Confirmé ⚡',
     isEscrow: false,
     escrowStatus: 'none',
     releaseCode: null,

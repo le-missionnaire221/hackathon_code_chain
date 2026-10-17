@@ -58,7 +58,11 @@ class TransactionItem {
   }
 
   bool get isConfirmed =>
-      status.contains('Confirmé') || status.contains('paid') || status.contains('Libéré');
+      status.contains('Confirmé') ||
+      status.toLowerCase().contains('paid') ||
+      status.toLowerCase().contains('payé') ||
+      status.toLowerCase().contains('paye') ||
+      status.contains('Libéré');
 
   bool get isLockedInEscrow =>
       isEscrow && (escrowStatus == 'locked' || status.contains('Séquestré'));

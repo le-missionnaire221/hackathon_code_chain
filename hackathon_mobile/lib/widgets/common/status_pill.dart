@@ -30,7 +30,7 @@ class StatusPill extends StatelessWidget {
     if (s.contains('libéré') || s.contains('libere') || s.contains('released')) {
       return ('Livré 🔓', PillTone.success);
     }
-    if (s.contains('confirm') || s.contains('paid')) {
+    if (s.contains('confirm') || s.contains('paid') || s.contains('payé') || s.contains('paye')) {
       return ('Confirmé', PillTone.success);
     }
     if (s.contains('expir')) {
