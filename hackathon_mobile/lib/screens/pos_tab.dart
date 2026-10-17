@@ -33,18 +33,22 @@ class _PosTabState extends State<PosTab> {
   static const String _backspace = '⌫';
 
   final TextEditingController _descController = TextEditingController(text: 'Sac Artisanal Cuir Ngor');
+  final TextEditingController _otpInputController = TextEditingController();
 
   // Saisie
   String _amountInput = '100';
   bool _inputInFcfa = false;      // false = saisie en SATS, true = saisie en FCFA
-  bool _isDistanceMode = false;   // false = Comptoir (TPE), true = WhatsApp / à distance
+  bool _isDistanceMode = false;   // false = Comptoir (TPE), true = WhatsApp / Séquestre Distance
   bool _isLoading = false;
+  bool _isReleasingEscrow = false;
 
   // Facture en cours
   _PosStage _stage = _PosStage.input;
   String? _bolt11Invoice;
   String? _invoiceReference;
   String? _preimage;
+  String? _releaseCode;
+  String _escrowStatus = 'none'; // 'none', 'awaiting_lock', 'locked', 'released'
   int _invoiceSats = 0;
   String _invoiceDescription = '';
   DateTime? _invoiceCreatedAt;
@@ -66,6 +70,7 @@ class _PosTabState extends State<PosTab> {
   void dispose() {
     _stopTimers();
     _descController.dispose();
+    _otpInputController.dispose();
     super.dispose();
   }
 
@@ -110,7 +115,7 @@ class _PosTabState extends State<PosTab> {
     });
   }
 
-  // ───────────────────────── Facturation Bitnob ─────────────────────────
+  // ───────────────────────── Facturation Bitnob & Séquestre ─────────────────────────
   Future<void> _createInvoice() async {
     final sats = _sats;
     if (sats <= 0) {
@@ -122,7 +127,12 @@ class _PosTabState extends State<PosTab> {
     setState(() => _isLoading = true);
 
     final description = _descController.text.trim().isEmpty ? 'Paiement PayChain' : _descController.text.trim();
-    final data = await ApiService.createInvoice(widget.backendUrl, amount: sats, description: description);
+    final data = await ApiService.createInvoice(
+      widget.backendUrl,
+      amount: sats,
+      description: description,
+      isEscrow: _isDistanceMode,
+    );
     if (!mounted) return;
 
     final invoiceData = data?['data'];
@@ -139,6 +149,8 @@ class _PosTabState extends State<PosTab> {
         _invoiceDescription = description;
         _invoiceCreatedAt = DateTime.now();
         _preimage = null;
+        _releaseCode = null;
+        _escrowStatus = _isDistanceMode ? 'awaiting_lock' : 'none';
         _isExpired = false;
         _stage = _PosStage.waiting;
       });
@@ -174,22 +186,67 @@ class _PosTabState extends State<PosTab> {
       if (data != null && data['status'] == 'paid') {
         _stopTimers();
         HapticFeedback.heavyImpact();
+        final rawPreimage = data['preimage']?.toString();
+        final code = data['releaseCode']?.toString() ?? (rawPreimage != null && rawPreimage.length >= 4 ? rawPreimage.substring(rawPreimage.length - 4).toUpperCase() : '80F9');
+        final currentEscrow = data['escrowStatus']?.toString() ?? (_isDistanceMode ? 'locked' : 'none');
+
         setState(() {
-          _preimage = data['preimage']?.toString();
+          _preimage = rawPreimage;
+          _releaseCode = code;
+          _escrowStatus = currentEscrow;
           _stage = _PosStage.paid;
         });
-        widget.onPaymentReceived(_invoiceSats, reference, _preimage, _invoiceDescription);
+
+        widget.onPaymentReceived(_invoiceSats, reference, rawPreimage, _invoiceDescription);
       }
     });
   }
 
+  Future<void> _handleReleaseEscrow() async {
+    final ref = _invoiceReference;
+    if (ref == null) return;
+
+    final enteredCode = _otpInputController.text.trim();
+    if (enteredCode.isEmpty) {
+      _showSnackbar('Entrez le code secret à 4 chiffres fourni par le client à la livraison.', AppColors.error);
+      return;
+    }
+
+    setState(() => _isReleasingEscrow = true);
+    HapticFeedback.mediumImpact();
+
+    final res = await ApiService.releaseEscrow(
+      widget.backendUrl,
+      ref,
+      enteredCode,
+    );
+
+    if (!mounted) return;
+    setState(() => _isReleasingEscrow = false);
+
+    if (res != null && res['success'] == true) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _escrowStatus = 'released';
+      });
+      widget.onPaymentReceived(_invoiceSats, ref, _preimage, _invoiceDescription);
+      _showSnackbar('🎉 Cadenas débloqué ! Fonds versés dans votre solde disponible.', AppColors.success);
+    } else {
+      final err = res?['error'] ?? 'Code secret invalide';
+      _showSnackbar('Erreur : $err', AppColors.error);
+    }
+  }
+
   void _resetToInput() {
     _stopTimers();
+    _otpInputController.clear();
     setState(() {
       _stage = _PosStage.input;
       _bolt11Invoice = null;
       _invoiceReference = null;
       _preimage = null;
+      _releaseCode = null;
+      _escrowStatus = 'none';
       _invoiceCreatedAt = null;
       _isExpired = false;
     });
@@ -220,6 +277,8 @@ class _PosTabState extends State<PosTab> {
       reference: _invoiceReference ?? 'N/A',
       bolt11OrPreimage: bolt11,
       isDeliveryReceipt: false,
+      isEscrow: _isDistanceMode,
+      backendUrl: widget.backendUrl,
     );
   }
 
@@ -229,8 +288,10 @@ class _PosTabState extends State<PosTab> {
       title: _invoiceDescription,
       amountText: _invoiceAmountText,
       reference: _invoiceReference ?? 'N/A',
-      bolt11OrPreimage: _preimage ?? 'Preimage confirmée',
+      bolt11OrPreimage: _preimage ?? (_releaseCode ?? 'Preimage confirmée'),
       isDeliveryReceipt: true,
+      isEscrow: _isDistanceMode,
+      backendUrl: widget.backendUrl,
     );
   }
 
@@ -268,13 +329,31 @@ class _PosTabState extends State<PosTab> {
   }
 
   Widget _buildHeader() {
-    final (title, subtitle) = switch (_stage) {
-      _PosStage.input => _isDistanceMode
-          ? ('Vente à distance', 'Facture WhatsApp payable depuis n\'importe où')
-          : ('Point de vente', 'Votre téléphone devient un TPE Lightning'),
-      _PosStage.waiting => ('En attente du paiement', 'Le client scanne ou ouvre la facture'),
-      _PosStage.paid => ('Paiement confirmé', 'Fonds reçus de façon irrévocable'),
-    };
+    final String title;
+    final String subtitle;
+    switch (_stage) {
+      case _PosStage.input:
+        title = _isDistanceMode
+            ? 'Vente à distance sécurisée'
+            : 'Point de vente comptoir';
+        subtitle = _isDistanceMode
+            ? 'Séquestre Anti-Arnaque pour WhatsApp & e-commerce'
+            : 'Votre téléphone devient un TPE Lightning sans frais';
+        break;
+      case _PosStage.waiting:
+        title = 'En attente du paiement';
+        subtitle = 'Le client scanne ou réserve la commande';
+        break;
+      case _PosStage.paid:
+        if (_isDistanceMode) {
+          title = _escrowStatus == 'released' ? 'Commande Livrée & Réglée 🔓' : 'Fonds sous Séquestre Garantis 🔒';
+          subtitle = 'Garantie de livraison bilatérale';
+        } else {
+          title = 'Paiement direct confirmé ⚡';
+          subtitle = 'Fonds reçus en direct sans intermédiaire';
+        }
+        break;
+    }
 
     return Row(
       children: [
@@ -300,9 +379,9 @@ class _PosTabState extends State<PosTab> {
         ),
         const SizedBox(width: 10),
         StatusPill(
-          label: _isDistanceMode ? 'WhatsApp' : 'Comptoir',
+          label: _isDistanceMode ? 'Séquestre 🛡️' : 'Comptoir',
           tone: _isDistanceMode ? PillTone.whatsapp : PillTone.info,
-          icon: _isDistanceMode ? Icons.chat_rounded : Icons.storefront_rounded,
+          icon: _isDistanceMode ? Icons.shield_rounded : Icons.storefront_rounded,
         ),
       ],
     );
@@ -315,6 +394,10 @@ class _PosTabState extends State<PosTab> {
       children: [
         _buildChannelSelector(),
         const SizedBox(height: 14),
+        if (_isDistanceMode) ...[
+          _buildBilateralProtectionCard(),
+          const SizedBox(height: 14),
+        ],
         _buildAmountDisplay(),
         const SizedBox(height: 12),
         _buildPresets(),
@@ -325,16 +408,50 @@ class _PosTabState extends State<PosTab> {
           controller: _descController,
           textInputAction: TextInputAction.done,
           maxLength: 60,
-          decoration: const InputDecoration(
-            labelText: 'Article / description',
-            hintText: 'ex : Sac artisanal, prestation freelance…',
-            prefixIcon: Icon(Icons.shopping_bag_outlined),
+          decoration: InputDecoration(
+            labelText: _isDistanceMode ? 'Article à expédier' : 'Article / description',
+            hintText: 'ex : Sac artisanal, chaussures cuir…',
+            prefixIcon: Icon(_isDistanceMode ? Icons.local_shipping_outlined : Icons.shopping_bag_outlined),
             counterText: '',
           ),
         ),
         const SizedBox(height: 16),
         _buildPrimaryButton(),
       ],
+    );
+  }
+
+  Widget _buildBilateralProtectionCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.whatsappSoft,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.whatsapp.withValues(alpha: 0.3)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.verified_user_rounded, color: AppColors.whatsappDark, size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SÉQUESTRE BILATÉRAL ANTI-ARNAQUE',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.whatsappDark, letterSpacing: 0.5),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  '1. Le client paie d\'avance en toute confiance (ses fonds sont verrouillés sous séquestre).\n2. Vous expédiez le colis avec certitude d\'être payé.\n3. Les fonds ne sont libérés qu\'à la remise physique du colis.',
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textBody, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -349,7 +466,7 @@ class _PosTabState extends State<PosTab> {
         children: [
           Expanded(
             child: _ChannelOption(
-              label: 'Comptoir',
+              label: 'Comptoir (TPE)',
               icon: Icons.storefront_rounded,
               selected: !_isDistanceMode,
               color: AppColors.primary,
@@ -358,8 +475,8 @@ class _PosTabState extends State<PosTab> {
           ),
           Expanded(
             child: _ChannelOption(
-              label: 'WhatsApp',
-              icon: Icons.chat_rounded,
+              label: 'WhatsApp (Séquestre)',
+              icon: Icons.shield_rounded,
               selected: _isDistanceMode,
               color: AppColors.whatsappDark,
               onTap: () => setState(() => _isDistanceMode = true),
@@ -388,12 +505,12 @@ class _PosTabState extends State<PosTab> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'MONTANT À ENCAISSER',
+                  _isDistanceMode ? 'MONTANT DE LA COMMANDE' : 'MONTANT À ENCAISSER',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textSecondary,
@@ -548,7 +665,7 @@ class _PosTabState extends State<PosTab> {
 
   Widget _buildPrimaryButton() {
     final color = _isDistanceMode ? AppColors.whatsapp : AppColors.primary;
-    final label = _isDistanceMode ? 'Créer la facture WhatsApp' : 'Générer le QR code';
+    final label = _isDistanceMode ? 'Créer la commande sous séquestre 🛡️' : 'Générer le QR code TPE';
     final enabled = !_isLoading && _sats > 0;
 
     return SizedBox(
@@ -572,7 +689,7 @@ class _PosTabState extends State<PosTab> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    _isDistanceMode ? Icons.send_rounded : Icons.qr_code_2_rounded,
+                    _isDistanceMode ? Icons.shield_rounded : Icons.qr_code_2_rounded,
                     color: _isDistanceMode ? Colors.white : AppColors.lightningGold,
                     size: 22,
                   ),
@@ -582,7 +699,7 @@ class _PosTabState extends State<PosTab> {
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                     ),
                   ),
                 ],
@@ -641,7 +758,9 @@ class _PosTabState extends State<PosTab> {
                   const SizedBox(width: 10),
                   _isExpired
                       ? const StatusPill(label: 'Expirée', tone: PillTone.neutral, icon: Icons.timer_off_rounded)
-                      : const StatusPill(label: 'En attente', tone: PillTone.warning, icon: Icons.schedule_rounded),
+                      : (_isDistanceMode
+                          ? const StatusPill(label: 'Séquestre en attente', tone: PillTone.warning, icon: Icons.lock_clock_rounded)
+                          : const StatusPill(label: 'En attente', tone: PillTone.warning, icon: Icons.schedule_rounded)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -676,7 +795,9 @@ class _PosTabState extends State<PosTab> {
                     child: Text(
                       _isExpired
                           ? 'Délai dépassé — créez une nouvelle facture'
-                          : 'Écoute du réseau Lightning • ${Formatters.elapsed(elapsed)}',
+                          : (_isDistanceMode
+                              ? 'En attente du verrouillage des fonds par le client • ${Formatters.elapsed(elapsed)}'
+                              : 'Écoute du réseau Lightning • ${Formatters.elapsed(elapsed)}'),
                       maxLines: 2,
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
@@ -730,11 +851,11 @@ class _PosTabState extends State<PosTab> {
       ),
       child: const Row(
         children: [
-          Icon(Icons.chat_rounded, color: AppColors.whatsappDark, size: 24),
+          Icon(Icons.shield_outlined, color: AppColors.whatsappDark, size: 24),
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Envoyez la facture au client sur WhatsApp : il paie depuis son portefeuille, où qu\'il soit.',
+              'Le client règle par le lien WhatsApp : ses fonds sont verrouillés sous séquestre jusqu\'à la remise physique du colis.',
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12.5, color: AppColors.textBody, height: 1.35),
@@ -778,10 +899,11 @@ class _PosTabState extends State<PosTab> {
     );
   }
 
-  // ───────────── Étape 3 : paiement reçu ─────────────
+  // ───────────── Étape 3 : paiement reçu / Séquestre ─────────────
   Widget _buildPaidStage() {
     final fcfa = _invoiceSats * AppConstants.satRateInFcfa;
-    final preimage = _preimage;
+    final isEscrowLocked = _isDistanceMode && _escrowStatus == 'locked';
+    final isEscrowReleased = _isDistanceMode && _escrowStatus == 'released';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -791,9 +913,16 @@ class _PosTabState extends State<PosTab> {
           decoration: BoxDecoration(
             color: AppColors.card,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppColors.success.withValues(alpha: 0.6), width: 1.5),
+            border: Border.all(
+              color: isEscrowLocked ? AppColors.amber : AppColors.success,
+              width: 1.5,
+            ),
             boxShadow: [
-              BoxShadow(color: AppColors.success.withValues(alpha: 0.15), blurRadius: 28, offset: const Offset(0, 10)),
+              BoxShadow(
+                color: (isEscrowLocked ? AppColors.amber : AppColors.success).withValues(alpha: 0.15),
+                blurRadius: 28,
+                offset: const Offset(0, 10),
+              ),
             ],
           ),
           child: Column(
@@ -807,58 +936,84 @@ class _PosTabState extends State<PosTab> {
                   width: 86,
                   height: 86,
                   decoration: BoxDecoration(
-                    gradient: AppColors.successGradient,
+                    gradient: isEscrowLocked
+                        ? const LinearGradient(colors: [AppColors.amber, AppColors.amberDark])
+                        : AppColors.successGradient,
                     shape: BoxShape.circle,
                     boxShadow: [
-                      BoxShadow(color: AppColors.success.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8)),
+                      BoxShadow(
+                        color: (isEscrowLocked ? AppColors.amber : AppColors.success).withValues(alpha: 0.35),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
                     ],
                   ),
-                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 50),
+                  child: Icon(
+                    isEscrowLocked ? Icons.lock_outline_rounded : Icons.check_rounded,
+                    color: Colors.white,
+                    size: 48,
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
-                'Paiement reçu !',
+              Text(
+                isEscrowLocked
+                    ? 'Fonds sous Séquestre Garantis 🔒'
+                    : (isEscrowReleased ? 'Colis Livré & Fonds Débloqués ! 🔓' : 'Paiement Reçu avec Succès ! ⚡'),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
               ),
               const SizedBox(height: 6),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   '+${Formatters.sats(_invoiceSats)}',
-                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: AppColors.successDark),
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w900,
+                    color: isEscrowLocked ? AppColors.amberDark : AppColors.successDark,
+                  ),
                 ),
               ),
               Text(
-                '≈ ${Formatters.fcfa(fcfa)} • réglé en Lightning ⚡',
+                '≈ ${Formatters.fcfa(fcfa)} • ${isEscrowLocked ? "bloqué sous séquestre" : "disponible dans votre solde"}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 20),
+
+              // CARTE PREUVE SÉQUESTRE & CODE DE DÉBLOCAGE
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.successSoft,
+                  color: isEscrowLocked ? const Color(0xFFFFFBEB) : AppColors.successSoft,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: isEscrowLocked ? AppColors.amber.withValues(alpha: 0.4) : AppColors.success.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.shield_rounded, color: AppColors.successDark, size: 18),
-                        SizedBox(width: 8),
+                        Icon(
+                          isEscrowLocked ? Icons.shield_rounded : Icons.verified_rounded,
+                          color: isEscrowLocked ? AppColors.amberDark : AppColors.successDark,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'PREUVE DE LIVRAISON SÉCURISÉE',
+                            isEscrowLocked
+                                ? 'EXPÉDITION AUTORISÉE (FONDS BLOQUÉS)'
+                                : 'REMISE DU COLIS CERTIFIÉE CONFORME',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 11.5,
-                              color: AppColors.successDark,
+                              color: isEscrowLocked ? AppColors.amberDark : AppColors.successDark,
                               letterSpacing: 0.4,
                             ),
                           ),
@@ -866,48 +1021,103 @@ class _PosTabState extends State<PosTab> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Fonds reçus de façon irrévocable. Aucun risque de rejet : remettez la marchandise en toute confiance.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textBody, height: 1.35),
+                    Text(
+                      isEscrowLocked
+                          ? 'Le client a réglé avec succès. Les fonds sont consignés sous séquestre. Confiez le colis au coursier en toute sécurité.'
+                          : 'Le client a validé son colis en mains propres. Les fonds ont été crédités dans votre solde disponible.',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textBody, height: 1.35),
                     ),
-                    if (preimage != null && preimage.isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                    if (isEscrowLocked) ...[
+                      const SizedBox(height: 14),
                       Container(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: const [
+                                Icon(Icons.pin_rounded, size: 16, color: AppColors.primary),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Code Secret Client (Remis à la livraison)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _otpInputController,
+                              keyboardType: TextInputType.text,
+                              textAlign: TextAlign.center,
+                              maxLength: 6,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 8,
+                                color: AppColors.primaryDark,
+                              ),
+                              decoration: InputDecoration(
+                                counterText: '',
+                                hintText: '• • • •',
+                                hintStyle: TextStyle(
+                                  fontSize: 24,
+                                  color: Colors.grey.shade400,
+                                  letterSpacing: 8,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                filled: true,
+                                fillColor: AppColors.background,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Demandez au client le code à 4 chiffres affiché sur sa page de reçu après inspection du colis.',
+                              style: TextStyle(fontSize: 10.5, color: AppColors.textMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (_isDistanceMode && _escrowStatus == 'released') ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
+                          border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
                         ),
                         child: Row(
-                          children: [
+                          children: const [
+                            Icon(Icons.lock_open_rounded, color: AppColors.successDark, size: 20),
+                            SizedBox(width: 10),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Preimage (preuve cryptographique)',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  SelectableText(
-                                    preimage,
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontFamily: 'monospace',
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                'CADENAS OUVERT 🔓 — Remise certifiée et fonds disponibles.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.successDark,
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              tooltip: 'Copier la preimage',
-                              icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primary),
-                              onPressed: () => _copy(preimage, 'Preimage copiée !'),
                             ),
                           ],
                         ),
@@ -927,20 +1137,52 @@ class _PosTabState extends State<PosTab> {
           ),
         ),
         const SizedBox(height: 16),
+
+        // BOUTON DE DÉBLOCAGE DU SÉQUESTRE LORSQUE LE LIVREUR A REMIS LE COLIS
+        if (isEscrowLocked) ...[
+          SizedBox(
+            height: 54,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+              ),
+              icon: _isReleasingEscrow
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.lock_open_rounded, size: 20),
+              label: Text(
+                _isReleasingEscrow ? 'Déblocage en cours…' : 'DÉBLOQUER LE CADENAS & ENCAISSER 🔓',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+              onPressed: _isReleasingEscrow ? null : _handleReleaseEscrow,
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // BOUTON PARTAGER WHATSAPP
         SizedBox(
-          height: 54,
+          height: 52,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
-            icon: const Icon(Icons.verified_rounded, size: 20),
-            label: const Text('Partager la preuve de livraison', maxLines: 1, overflow: TextOverflow.ellipsis),
+            icon: const Icon(Icons.share_rounded, size: 18),
+            label: Text(
+              isEscrowLocked ? 'Envoyer le reçu sous séquestre au client' : 'Partager la preuve de remise WhatsApp',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             onPressed: _shareProof,
           ),
         ),
         const SizedBox(height: 10),
+
+        // BOUTON NOUVELLE TRANSACTION
         SizedBox(
-          height: 54,
+          height: 50,
           child: OutlinedButton.icon(
-            icon: const Icon(Icons.add_rounded, size: 20),
+            icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('Nouvelle vente', maxLines: 1, overflow: TextOverflow.ellipsis),
             onPressed: _resetToInput,
           ),
@@ -995,7 +1237,7 @@ class _ChannelOption extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: selected ? color : AppColors.textSecondary,
                 ),

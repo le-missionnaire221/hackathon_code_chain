@@ -1,4 +1,4 @@
-﻿class TransactionItem {
+class TransactionItem {
   final String id;
   final String reference;
   final String title;
@@ -10,6 +10,9 @@
   final String status;
   final String? preimage;
   final String? request;
+  final bool isEscrow;
+  final String escrowStatus; // 'awaiting_lock', 'locked', 'released', 'none'
+  final String? releaseCode;
 
   TransactionItem({
     required this.id,
@@ -23,6 +26,9 @@
     required this.status,
     this.preimage,
     this.request,
+    this.isEscrow = false,
+    this.escrowStatus = 'none',
+    this.releaseCode,
   });
 
   factory TransactionItem.fromJson(Map<String, dynamic> json) {
@@ -45,9 +51,15 @@
       status: json['status']?.toString() ?? 'Confirmé ⚡',
       preimage: json['preimage']?.toString(),
       request: json['request']?.toString(),
+      isEscrow: json['isEscrow'] == true,
+      escrowStatus: json['escrowStatus']?.toString() ?? 'none',
+      releaseCode: json['releaseCode']?.toString(),
     );
   }
 
   bool get isConfirmed =>
-      status.contains('Confirmé') || status.contains('paid');
+      status.contains('Confirmé') || status.contains('paid') || status.contains('Libéré');
+
+  bool get isLockedInEscrow =>
+      isEscrow && (escrowStatus == 'locked' || status.contains('Séquestré'));
 }

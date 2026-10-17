@@ -24,8 +24,18 @@ class StatusPill extends StatelessWidget {
   /// Traduit le statut renvoyé par le backend en libellé + couleur.
   static (String, PillTone) fromTransactionStatus(String status) {
     final s = status.toLowerCase();
-    if (s.contains('confirm') || s.contains('paid')) return ('Confirmé', PillTone.success);
-    if (s.contains('expir')) return ('Expiré', PillTone.neutral);
+    if (s.contains('séquestré') || s.contains('sequestre') || s.contains('locked')) {
+      return ('Séquestré 🔒', PillTone.warning);
+    }
+    if (s.contains('libéré') || s.contains('libere') || s.contains('released')) {
+      return ('Livré 🔓', PillTone.success);
+    }
+    if (s.contains('confirm') || s.contains('paid')) {
+      return ('Confirmé', PillTone.success);
+    }
+    if (s.contains('expir')) {
+      return ('Expiré', PillTone.neutral);
+    }
     return ('En attente', PillTone.warning);
   }
 

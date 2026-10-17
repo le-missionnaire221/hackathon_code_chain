@@ -1,10 +1,13 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/transaction_item.dart';
 
 class WalletResponse {
   final int balanceSats;
   final double balanceFcfa;
+  final int escrowSats;
+  final double escrowFcfa;
+  final int escrowInvoicesCount;
   final int btcPriceFcfa;
   final int totalInvoices;
   final int paidInvoicesCount;
@@ -13,6 +16,9 @@ class WalletResponse {
   WalletResponse({
     required this.balanceSats,
     required this.balanceFcfa,
+    required this.escrowSats,
+    required this.escrowFcfa,
+    required this.escrowInvoicesCount,
     required this.btcPriceFcfa,
     required this.totalInvoices,
     required this.paidInvoicesCount,
@@ -34,6 +40,9 @@ class ApiService {
           return WalletResponse(
             balanceSats: (data['balanceSats'] as num?)?.toInt() ?? 0,
             balanceFcfa: (data['balanceFcfa'] as num?)?.toDouble() ?? 0.0,
+            escrowSats: (data['escrowSats'] as num?)?.toInt() ?? 0,
+            escrowFcfa: (data['escrowFcfa'] as num?)?.toDouble() ?? 0.0,
+            escrowInvoicesCount: (data['escrowInvoicesCount'] as num?)?.toInt() ?? 0,
             btcPriceFcfa: (data['btcPriceFcfa'] as num?)?.toInt() ?? 64850000,
             totalInvoices: (data['totalInvoices'] as num?)?.toInt() ?? 0,
             paidInvoicesCount: (data['paidInvoicesCount'] as num?)?.toInt() ?? 0,
@@ -49,6 +58,7 @@ class ApiService {
     String backendUrl, {
     required int amount,
     required String description,
+    bool isEscrow = false,
   }) async {
     try {
       final res = await http.post(
@@ -57,6 +67,7 @@ class ApiService {
         body: jsonEncode({
           'amount': amount,
           'description': description.trim().isEmpty ? 'Paiement Démo' : description.trim(),
+          'isEscrow': isEscrow,
         }),
       );
       return jsonDecode(res.body);
@@ -76,6 +87,23 @@ class ApiService {
       }
     } catch (_) {}
     return null;
+  }
+
+  static Future<Map<String, dynamic>?> releaseEscrow(
+    String backendUrl,
+    String reference,
+    String code,
+  ) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$backendUrl/invoice/$reference/release'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': code}),
+      );
+      return jsonDecode(res.body);
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<String?> pingBackend(String backendUrl) async {

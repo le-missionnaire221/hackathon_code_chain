@@ -12,6 +12,9 @@ import '../widgets/transaction_card.dart';
 class WalletTab extends StatelessWidget {
   final int balanceSats;
   final double balanceFcfa;
+  final int escrowSats;
+  final double escrowFcfa;
+  final int escrowInvoicesCount;
   final int btcPriceFcfa;
   final int paidInvoicesCount;
   final int totalInvoicesCount;
@@ -28,6 +31,9 @@ class WalletTab extends StatelessWidget {
     super.key,
     required this.balanceSats,
     required this.balanceFcfa,
+    this.escrowSats = 0,
+    this.escrowFcfa = 0.0,
+    this.escrowInvoicesCount = 0,
     required this.btcPriceFcfa,
     required this.paidInvoicesCount,
     required this.totalInvoicesCount,
@@ -62,6 +68,10 @@ class WalletTab extends StatelessWidget {
             _buildHeader(),
             const SizedBox(height: 20),
             _buildBalanceCard(context),
+            if (escrowSats > 0) ...[
+              const SizedBox(height: 14),
+              _buildEscrowBanner(),
+            ],
             const SizedBox(height: 16),
             _buildStatsRow(),
             const SizedBox(height: 26),
@@ -152,7 +162,7 @@ class WalletTab extends StatelessWidget {
                       const SizedBox(width: 6),
                       const Expanded(
                         child: Text(
-                          'SOLDE MARCHAND • BITNOB TESTNET',
+                          'SOLDE DISPONIBLE • BITNOB TESTNET',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -277,6 +287,53 @@ class WalletTab extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ───────────────────────── Bannière Séquestre ─────────────────────────
+  Widget _buildEscrowBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.amber.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.shield_outlined, color: AppColors.amberDark, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'SÉQUESTRE EN COURS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.amberDark, letterSpacing: 0.5),
+                    ),
+                    const SizedBox(width: 6),
+                    StatusPill(label: '$escrowInvoicesCount commande(s)', tone: PillTone.warning, dense: true),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${Formatters.fcfa(escrowFcfa)} (${Formatters.sats(escrowSats)}) garantis, libérables à la livraison.',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF78350F), fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,8 @@ class WhatsappShareModal extends StatefulWidget {
   final String reference;
   final String bolt11OrPreimage;
   final bool isDeliveryReceipt; // true = Reçu de Livraison, false = Facture de Vente
+  final bool isEscrow; // true = Commande sous séquestre bilatéral
+  final String? backendUrl;
 
   const WhatsappShareModal({
     super.key,
@@ -17,6 +19,8 @@ class WhatsappShareModal extends StatefulWidget {
     required this.reference,
     required this.bolt11OrPreimage,
     this.isDeliveryReceipt = false,
+    this.isEscrow = false,
+    this.backendUrl,
   });
 
   static void show(
@@ -26,6 +30,8 @@ class WhatsappShareModal extends StatefulWidget {
     required String reference,
     required String bolt11OrPreimage,
     bool isDeliveryReceipt = false,
+    bool isEscrow = false,
+    String? backendUrl,
   }) {
     AppBottomSheet.show(
       context,
@@ -35,6 +41,8 @@ class WhatsappShareModal extends StatefulWidget {
         reference: reference,
         bolt11OrPreimage: bolt11OrPreimage,
         isDeliveryReceipt: isDeliveryReceipt,
+        isEscrow: isEscrow,
+        backendUrl: backendUrl,
       ),
     );
   }
@@ -48,23 +56,47 @@ class _WhatsappShareModalState extends State<WhatsappShareModal> {
 
   String get _formattedMessage {
     if (widget.isDeliveryReceipt) {
-      return '''✅ *PAYCHAIN DAKAR - PREUVE DE LIVRAISON SÉCURISÉE* 🛡️
+      return '''✅ *PAYCHAIN DAKAR - REMISE DU COLIS CONFIRMÉE* 🛡️
 
 📦 *Commande :* ${widget.title}
-💰 *Montant Réglé :* ${widget.amountText}
+💰 *Montant Débloqué :* ${widget.amountText}
 🔗 *Référence :* ${widget.reference}
-🔐 *Preimage (Preuve Cryptographique) :*
+🔐 *Preimage / Clé de Preuve :*
 ${widget.bolt11OrPreimage}
 
-Ce reçu officiel certifie le déblocage irrévocable des fonds sur le réseau Bitcoin Lightning.''';
+La remise du colis a été certifiée et les fonds sont définitivement libérés.''';
+    } else if (widget.isEscrow) {
+      final payLink = widget.backendUrl != null && widget.backendUrl!.isNotEmpty
+          ? '${widget.backendUrl}/pay/${widget.reference}'
+          : 'http://localhost:5000/pay/${widget.reference}';
+      return '''🛡️ *COMMANDE SOUS SÉQUESTRE SÉCURISÉ - PAYCHAIN DAKAR* 🇸🇳
+
+📦 *Article :* ${widget.title}
+💰 *Montant :* ${widget.amountText}
+🔗 *Réf :* ${widget.reference}
+
+🛡️ *GARANTIE ANTI-ARNAQUE ACHETEUR & MARCHAND :*
+Vos fonds sont consignés sous séquestre sécurisé. Ils ne seront débloqués au vendeur que lorsque vous aurez inspecté et validé votre colis en mains propres !
+
+🌐 *Page de Paiement & Code Secret de Livraison :*
+$payLink
+
+⚡ *Facture Lightning BOLT11 directe :*
+${widget.bolt11OrPreimage}''';
     } else {
+      final payLink = widget.backendUrl != null && widget.backendUrl!.isNotEmpty
+          ? '${widget.backendUrl}/pay/${widget.reference}'
+          : 'http://localhost:5000/pay/${widget.reference}';
       return '''⚡ *FACTURE SÉCURISÉE PAYCHAIN DAKAR* 🇸🇳
 
 📦 *Article :* ${widget.title}
 💰 *Montant :* ${widget.amountText}
 🔗 *Réf :* ${widget.reference}
 
-Réglez en 1 clic avec votre portefeuille Lightning (Blink, Strike, CashApp, Phoenix) :
+🌐 *Page de Paiement Direct :*
+$payLink
+
+⚡ *Facture Lightning BOLT11 :*
 ${widget.bolt11OrPreimage}''';
     }
   }
@@ -108,7 +140,9 @@ ${widget.bolt11OrPreimage}''';
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                isDelivery ? Icons.verified_rounded : Icons.chat_rounded,
+                isDelivery
+                    ? Icons.verified_rounded
+                    : (widget.isEscrow ? Icons.shield_rounded : Icons.chat_rounded),
                 color: Colors.white,
                 size: 24,
               ),
@@ -119,14 +153,18 @@ ${widget.bolt11OrPreimage}''';
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isDelivery ? 'Preuve de livraison' : 'Facture WhatsApp',
+                    isDelivery
+                        ? 'Preuve de remise'
+                        : (widget.isEscrow ? 'Facture sous séquestre 🛡️' : 'Facture WhatsApp'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isDelivery ? 'Garantie anti-arnaque pour le client' : 'Vente à distance sans carte bancaire',
+                    isDelivery
+                        ? 'Garantie anti-arnaque confirmée'
+                        : (widget.isEscrow ? 'Fonds protégés jusqu\'à la remise physique' : 'Vente à distance sans carte bancaire'),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),

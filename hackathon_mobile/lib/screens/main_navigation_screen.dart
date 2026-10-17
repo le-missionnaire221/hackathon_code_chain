@@ -25,6 +25,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   bool _isLoadingWallet = false;
   int _balanceSats = 0;
   double _balanceFcfa = 0.0;
+  int _escrowSats = 0;
+  double _escrowFcfa = 0.0;
+  int _escrowInvoicesCount = 0;
   int _btcPriceFcfa = 64850000;
   int _paidInvoicesCount = 0;
   int _totalInvoicesCount = 0;
@@ -51,6 +54,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       if (wallet != null) {
         _balanceSats = wallet.balanceSats;
         _balanceFcfa = wallet.balanceFcfa;
+        _escrowSats = wallet.escrowSats;
+        _escrowFcfa = wallet.escrowFcfa;
+        _escrowInvoicesCount = wallet.escrowInvoicesCount;
         _btcPriceFcfa = wallet.btcPriceFcfa;
         _paidInvoicesCount = wallet.paidInvoicesCount;
         _totalInvoicesCount = wallet.totalInvoices;
@@ -85,6 +91,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           WalletTab(
             balanceSats: _balanceSats,
             balanceFcfa: _balanceFcfa,
+            escrowSats: _escrowSats,
+            escrowFcfa: _escrowFcfa,
+            escrowInvoicesCount: _escrowInvoicesCount,
             btcPriceFcfa: _btcPriceFcfa,
             paidInvoicesCount: _paidInvoicesCount,
             totalInvoicesCount: _totalInvoicesCount,
@@ -103,8 +112,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               _fetchRealWalletData();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('⚡ +${Formatters.sats(sats)} reçus — $desc'),
-                  backgroundColor: AppColors.success,
+                  content: Text('⚡ Commande enregistrée : +${Formatters.sats(sats)} ($desc)'),
+                  backgroundColor: AppColors.primary,
                 ),
               );
             },
