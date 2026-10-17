@@ -3,7 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import { initDb, pool, getInvoice, createInvoiceRecord, listPendingInvoices, settleInvoice, releaseInvoice, buildWalletPayload } from './db.js';
+import { initDb, pool, getInvoice, createInvoiceRecord, listPendingInvoices, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, SAT_TO_FCFA } from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
 import { mountAdmin } from './admin.js';
@@ -145,25 +145,45 @@ app.get('/invoice/:reference/status', async (req, res) => {
   res.json(await reconcileInvoice(invoice));
 });
 
-// === RÈGLEMENT CLIENT DIRECT (DEPUIS L'APP OU LE BOUTON WEB) ===
-app.post('/invoice/:reference/pay', async (req, res) => {
-  const existing = await getInvoice(req.params.reference);
-  if (!existing) {
-    return res.status(404).json({ success: false, error: "Facture introuvable" });
+// === LECTURE D'UN QR LIGHTNING, D'UN LIEN OU D'UNE RÉFÉRENCE ===
+app.post('/invoice/lookup', async (req, res) => {
+  const invoice = await findInvoiceByScan(req.body?.code || req.body?.reference || '');
+  if (!invoice) {
+    return res.status(404).json({ error: 'QR code ou facture introuvable' });
   }
+  res.json(invoice);
+});
 
-  const invoice = await settleInvoice(req.params.reference, { preimage: existing.preimage });
-  console.log(`${invoice.isEscrow ? '🔒' : '⚡'} [PAIEMENT CLIENT] ${invoice.reference} → ${invoice.escrowStatus}`);
-  res.json({
-    success: true,
-    reference: invoice.reference,
-    status: invoice.status,
-    isEscrow: invoice.isEscrow,
-    escrowStatus: invoice.escrowStatus,
-    releaseCode: invoice.releaseCode,
-    preimage: invoice.preimage,
-    message: invoice.isEscrow ? "Fonds consignés sous séquestre !" : "Paiement direct validé !"
-  });
+// === PAIEMENT DEPUIS LE PORTEFEUILLE PAYCHAIN ===
+app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
+  try {
+    const result = await payFromBuyerWallet(req.params.reference, req.user.id);
+    if (result.error) {
+      return res.status(result.status || 400).json({ success: false, error: result.error });
+    }
+    const invoice = result.invoice;
+    const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
+    console.log(`⚡ [PAIEMENT APP] ${req.user.phone} → ${invoice.reference} (${fcfa} FCFA)`);
+    res.json({
+      success: true,
+      reference: invoice.reference,
+      status: invoice.status,
+      amount: invoice.amount,
+      amountFcfa: fcfa,
+      description: invoice.description,
+      merchantName: invoice.merchantName,
+      isEscrow: invoice.isEscrow,
+      escrowStatus: invoice.escrowStatus,
+      releaseCode: invoice.releaseCode,
+      preimage: invoice.preimage,
+      message: result.already
+        ? 'Cette facture est déjà payée.'
+        : `${fcfa} FCFA débités de votre portefeuille. ${invoice.merchantName} est crédité.`
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Paiement impossible' });
+  }
 });
 
 // === PAGE WEB DE PAIEMENT SÉCURISÉ (ADAPTATIVE MOBILE & PC) ===
@@ -784,6 +804,9 @@ app.get('/pay/:reference', async (req, res) => {
             if (data.success) {
               isPaid = true;
               showPaid(data.releaseCode || data.invoice?.releaseCode, data.escrowStatus || data.invoice?.escrowStatus);
+            } else if (btn) {
+              btn.innerText = data.error || 'Payez avec Blink ou l’application PayChain';
+              btn.disabled = false;
             }
           } catch(e) {
             if (btn) {

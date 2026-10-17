@@ -224,6 +224,124 @@ export async function getInvoice(reference) {
   return toInvoice(rows[0]);
 }
 
+export function extractScanCode(raw) {
+  let text = String(raw || '').trim();
+  if (text.toLowerCase().startsWith('lightning:')) text = text.slice('lightning:'.length);
+  if (text.includes('/pay/')) {
+    text = text.split('/pay/').pop().split('?')[0].split('#')[0].trim();
+  }
+  return text.trim();
+}
+
+export async function findInvoiceByScan(raw) {
+  const code = extractScanCode(raw);
+  if (!code) return null;
+  const { rows } = await pool.query(
+    `SELECT i.*, u.full_name AS merchant_name
+     FROM invoices i
+     JOIN users u ON u.id = i.user_id
+     WHERE i.reference = $1 OR i.bolt11 = $1
+     LIMIT 1`,
+    [code]
+  );
+  if (!rows[0]) return null;
+  const invoice = toInvoice(rows[0]);
+  invoice.merchantName = rows[0].merchant_name || 'Marchand PayChain';
+  invoice.amountFcfa = Math.round(invoice.amount * SAT_TO_FCFA);
+  return invoice;
+}
+
+export async function payFromBuyerWallet(reference, buyerId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM invoices WHERE reference = $1 FOR UPDATE', [reference]);
+    const row = rows[0];
+    if (!row) {
+      await client.query('ROLLBACK');
+      return { status: 404, error: 'Facture introuvable' };
+    }
+    const merchant = await client.query('SELECT full_name FROM users WHERE id = $1', [row.user_id]);
+    const merchantName = merchant.rows[0]?.full_name || 'Marchand PayChain';
+    if (row.status === 'paid') {
+      await client.query('COMMIT');
+      const invoice = toInvoice(row);
+      invoice.merchantName = merchantName;
+      invoice.amountFcfa = Math.round(invoice.amount * SAT_TO_FCFA);
+      return { invoice, already: true };
+    }
+    if (row.user_id === buyerId) {
+      await client.query('ROLLBACK');
+      return { status: 400, error: 'Vous ne pouvez pas payer votre propre QR code.' };
+    }
+
+    const wallet = await client.query('SELECT balance_sats FROM wallets WHERE user_id = $1 FOR UPDATE', [buyerId]);
+    const balance = Number(wallet.rows[0]?.balance_sats || 0);
+    if (balance < Number(row.amount)) {
+      await client.query('ROLLBACK');
+      return {
+        status: 400,
+        error: `Solde insuffisant. Il faut ${row.amount} sats (≈ ${Math.round(row.amount * SAT_TO_FCFA)} FCFA) et votre portefeuille contient ${balance} sats.`,
+      };
+    }
+
+    await client.query(
+      `UPDATE wallets SET balance_sats = balance_sats - $2, updated_at = now() WHERE user_id = $1`,
+      [buyerId, row.amount]
+    );
+    await client.query(
+      `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
+       VALUES ($1, $2, 'invoice_payment', $3, $4)`,
+      [buyerId, -Number(row.amount), reference, `Paiement à ${merchantName}`]
+    );
+
+    const image = row.preimage || crypto.randomBytes(32).toString('hex');
+    const code = extractShortCode(image);
+    const escrowStatus = row.is_escrow ? 'locked' : 'none';
+    const updated = await client.query(
+      `UPDATE invoices
+       SET status = 'paid', preimage = $2, release_code = $3, escrow_status = $4, paid_at = now()
+       WHERE reference = $1
+       RETURNING *`,
+      [reference, image, code, escrowStatus]
+    );
+
+    if (row.is_escrow) {
+      await client.query(
+        `UPDATE wallets SET escrow_sats = escrow_sats + $2, updated_at = now() WHERE user_id = $1`,
+        [row.user_id, row.amount]
+      );
+    } else {
+      await client.query(
+        `UPDATE wallets SET balance_sats = balance_sats + $2, updated_at = now() WHERE user_id = $1`,
+        [row.user_id, row.amount]
+      );
+    }
+    await client.query(
+      `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        row.user_id,
+        row.amount,
+        row.is_escrow ? 'escrow_lock' : 'invoice_paid',
+        reference,
+        row.is_escrow ? 'Fonds consignés sous séquestre' : `Encaissement de ${merchantName}`,
+      ]
+    );
+
+    await client.query('COMMIT');
+    const invoice = toInvoice(updated.rows[0]);
+    invoice.merchantName = merchantName;
+    invoice.amountFcfa = Math.round(invoice.amount * SAT_TO_FCFA);
+    return { invoice };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function listPendingInvoices(userId) {
   const { rows } = await pool.query(
     `SELECT * FROM invoices
@@ -364,7 +482,7 @@ export async function buildWalletPayload(userId) {
   );
   const invoices = rows.map(toInvoice);
   const { rows: credits } = await pool.query(
-    `SELECT * FROM ledger WHERE user_id = $1 AND kind = 'admin_credit' ORDER BY created_at DESC`,
+    `SELECT * FROM ledger WHERE user_id = $1 AND kind IN ('admin_credit', 'invoice_payment') ORDER BY created_at DESC`,
     [userId]
   );
 
@@ -388,13 +506,15 @@ export async function buildWalletPayload(userId) {
   const creditTx = credits.map((entry) => ({
     id: entry.id,
     reference: entry.reference || 'ADMIN',
-    title: entry.note || 'Ajustement administrateur',
-    category: 'Ajustement administrateur',
+    title: entry.note || (entry.kind === 'invoice_payment' ? 'Paiement envoyé' : 'Ajustement administrateur'),
+    category: entry.kind === 'invoice_payment' ? 'Paiement envoyé' : 'Ajustement administrateur',
     amountSats: Math.abs(Number(entry.amount_sats)),
     amountFcfa: Math.round(Math.abs(Number(entry.amount_sats)) * SAT_TO_FCFA),
     isCredit: Number(entry.amount_sats) >= 0,
     date: entry.created_at,
-    status: Number(entry.amount_sats) >= 0 ? 'Crédit admin' : 'Débit admin',
+    status: entry.kind === 'invoice_payment'
+      ? 'Payé ⚡'
+      : (Number(entry.amount_sats) >= 0 ? 'Crédit admin' : 'Débit admin'),
     isEscrow: false,
     escrowStatus: 'none',
     releaseCode: null,

@@ -22,6 +22,12 @@ class Session {
     fullName = prefs.getString('fullName');
     role = prefs.getString('role');
     backendUrl = prefs.getString('backendUrl');
+    if (backendUrl == null ||
+        backendUrl!.contains('localhost') ||
+        backendUrl!.contains('10.0.2.2')) {
+      backendUrl = 'https://hackathon-code-chain.onrender.com';
+      await prefs.setString('backendUrl', backendUrl!);
+    }
     ApiService.token = token;
     return token != null && token!.isNotEmpty;
   }

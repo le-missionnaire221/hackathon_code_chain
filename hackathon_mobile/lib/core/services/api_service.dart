@@ -165,6 +165,20 @@ class ApiService {
     return null;
   }
 
+  static Future<Map<String, dynamic>?> lookupInvoice(String backendUrl, String code) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$backendUrl/invoice/lookup'),
+        headers: _headers,
+        body: jsonEncode({'code': code}),
+      );
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+    } catch (_) {}
+    return null;
+  }
+
   static Future<Map<String, dynamic>?> payInvoice(
     String backendUrl,
     String reference,
@@ -172,12 +186,16 @@ class ApiService {
     try {
       final res = await http.post(
         Uri.parse('$backendUrl/invoice/$reference/pay'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
       );
-      return jsonDecode(res.body);
+      _guard(res);
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
     } catch (_) {
       return null;
     }
+    return null;
   }
 
   static Future<String?> pingBackend(String backendUrl) async {

@@ -1,12 +1,10 @@
-﻿import 'package:flutter/foundation.dart';
-
-class AppConstants {
+﻿class AppConstants {
   // URLs du Backend
+  static const String productionBackendUrl = 'https://hackathon-code-chain.onrender.com';
   static const String defaultWebBackendUrl = 'http://localhost:5000';
   static const String defaultAndroidBackendUrl = 'http://10.0.2.2:5000';
 
-  static String get initialBackendUrl =>
-      kIsWeb ? defaultWebBackendUrl : defaultAndroidBackendUrl;
+  static String get initialBackendUrl => productionBackendUrl;
 
   // Taux de change et conversions
   static const double satRateInFcfa = 0.65; // 1 Sat ≈ 0.65 FCFA

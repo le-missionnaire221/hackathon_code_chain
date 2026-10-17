@@ -37,7 +37,7 @@ class _PosTabState extends State<PosTab> {
 
   // Saisie
   String _amountInput = '100';
-  bool _inputInFcfa = false;      // false = saisie en SATS, true = saisie en FCFA
+  bool _inputInFcfa = true;       // Le TPE saisit en FCFA : 2000 = 2 000 francs
   bool _isDistanceMode = false;   // false = Comptoir (TPE), true = WhatsApp / Séquestre Distance
   bool _isLoading = false;
   bool _isReleasingEscrow = false;
@@ -882,7 +882,7 @@ class _PosTabState extends State<PosTab> {
                 border: Border.all(color: AppColors.border, width: 1.5),
               ),
               child: QrImageView(
-                data: bolt11,
+                data: bolt11.startsWith('lightning:') ? bolt11 : 'lightning:$bolt11',
                 version: QrVersions.auto,
                 size: size,
                 padding: EdgeInsets.zero,

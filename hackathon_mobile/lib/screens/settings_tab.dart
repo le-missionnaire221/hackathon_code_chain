@@ -301,6 +301,11 @@ class _SettingsTabState extends State<SettingsTab> {
                   runSpacing: 8,
                   children: [
                     ActionChip(
+                      avatar: const Icon(Icons.cloud_done_rounded, size: 16),
+                      label: const Text('Serveur en ligne', style: TextStyle(fontSize: 12)),
+                      onPressed: () => _applyUrl(AppConstants.productionBackendUrl),
+                    ),
+                    ActionChip(
                       avatar: const Icon(Icons.language_rounded, size: 16),
                       label: const Text('Web (localhost:5000)', style: TextStyle(fontSize: 12)),
                       onPressed: () => _applyUrl(AppConstants.defaultWebBackendUrl),

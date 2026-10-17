@@ -36,6 +36,10 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _submit() async {
     final phone = _phoneController.text.trim();
     final password = _passwordController.text;
+    if (_isRegister && _nameController.text.trim().length < 2) {
+      setState(() => _error = 'Indiquez votre nom complet.');
+      return;
+    }
     if (phone.length < 9 || password.length < 6) {
       setState(() => _error = 'Téléphone et mot de passe (6 caractères minimum) requis.');
       return;

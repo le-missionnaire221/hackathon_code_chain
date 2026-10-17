@@ -4,6 +4,7 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
 import '../core/utils/formatters.dart';
+import '../screens/qr_scan_screen.dart';
 import 'common/app_bottom_sheet.dart';
 
 class BuyerPaymentSheet extends StatefulWidget {
@@ -61,6 +62,15 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
     return text;
   }
 
+  Future<void> _scanQr() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (code == null || code.trim().isEmpty || !mounted) return;
+    _inputController.text = code.trim();
+    await _lookupInvoice(code);
+  }
+
   Future<void> _pasteFromClipboard() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim();
@@ -84,13 +94,14 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
       _extractedRef = ref;
     });
 
-    final res = await ApiService.getInvoiceStatus(widget.backendUrl, ref);
+    final res = await ApiService.lookupInvoice(widget.backendUrl, raw);
 
     if (!mounted) return;
     setState(() {
       _isLoading = false;
-      if (res != null && res['error'] == null) {
+      if (res != null && res['error'] == null && res['reference'] != null) {
         _invoiceData = res;
+        _extractedRef = res['reference']?.toString();
       } else {
         _errorMessage = 'Commande introuvable. Vérifiez la référence ou le lien.';
       }
@@ -139,7 +150,8 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
     final isEscrow = _invoiceData?['isEscrow'] == true;
     final releaseCode = _invoiceData?['releaseCode']?.toString();
     final sats = int.tryParse(_invoiceData?['amount']?.toString() ?? '0') ?? 0;
-    final fcfa = sats * AppConstants.satRateInFcfa;
+    final fcfa = (_invoiceData?['amountFcfa'] as num?)?.toDouble() ?? sats * AppConstants.satRateInFcfa;
+    final merchantName = _invoiceData?['merchantName']?.toString();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -192,6 +204,15 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
 
           // Champ de saisie ou de collage si pas encore chargé
           if (_invoiceData == null) ...[
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _scanQr,
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                label: const Text('Scanner le QR du marchand'),
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _inputController,
               decoration: InputDecoration(
@@ -253,6 +274,11 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  if (merchantName != null && merchantName.isNotEmpty)
+                    Text(
+                      merchantName,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                    ),
                   Text(
                     _invoiceData?['description'] ?? 'Article PayChain',
                     style: const TextStyle(
@@ -353,6 +379,18 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
 
             // BOUTON PAYER SI NON ENCORE RÉGLÉ
             if (!isPaid) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.amberLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  'Ce paiement va débiter ${Formatters.fcfa(fcfa)} de votre portefeuille PayChain, puis les créditer au marchand.',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.amberDark, height: 1.35),
+                ),
+              ),
+              const SizedBox(height: 10),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isEscrow ? AppColors.whatsapp : AppColors.primary,
@@ -364,7 +402,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                 label: Text(
                   _isPaying
                       ? 'Règlement en cours…'
-                      : (isEscrow ? 'CONFIRMER LE DÉPÔT SOUS SÉQUESTRE 🛡️' : 'PAYER DIRECTEMENT ⚡'),
+                      : 'PAYER ${Formatters.fcfa(fcfa)}',
                 ),
                 onPressed: _isPaying ? null : _confirmPayment,
               ),
