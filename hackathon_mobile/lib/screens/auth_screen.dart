@@ -323,7 +323,8 @@ class _AuthScreenState extends State<AuthScreen> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -339,29 +340,39 @@ class _AuthScreenState extends State<AuthScreen> {
                 }
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: !_isRegister ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(11),
+                  color: !_isRegister ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: !_isRegister
                       ? [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 6,
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
                         ]
                       : [],
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  'Se connecter',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: !_isRegister ? FontWeight.w800 : FontWeight.w600,
-                    color: !_isRegister ? AppColors.primary : const Color(0xFF64748B),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.login_rounded,
+                      size: 16,
+                      color: !_isRegister ? Colors.white : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Se connecter',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: !_isRegister ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -378,29 +389,39 @@ class _AuthScreenState extends State<AuthScreen> {
                 }
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: _isRegister ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(11),
+                  color: _isRegister ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: _isRegister
                       ? [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 6,
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
                         ]
                       : [],
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  'Créer un compte',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: _isRegister ? FontWeight.w800 : FontWeight.w600,
-                    color: _isRegister ? AppColors.primary : const Color(0xFF64748B),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.person_add_rounded,
+                      size: 16,
+                      color: _isRegister ? Colors.white : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Créer un compte',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _isRegister ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
