@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
 import '../core/services/branding_service.dart';
@@ -9,6 +8,7 @@ import '../core/services/session.dart';
 import '../widgets/buyer_payment_sheet.dart';
 import 'auth_screen.dart';
 import 'main_navigation_screen.dart';
+import 'splash_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -30,11 +30,21 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _bootstrap() async {
+    final startTime = DateTime.now();
+
     await DeepLinkService.instance.start();
     _linkSub = DeepLinkService.instance.payCodes.listen(_onPayCode);
     await BrandingService.restore();
     await BrandingService.loadFromBackend(AppConstants.productionBackendUrl);
     final ok = await Session.restore();
+
+    // Durée minimale d'affichage du splash screen pour un rendu fluide et pro
+    final elapsed = DateTime.now().difference(startTime);
+    final remaining = 1800 - elapsed.inMilliseconds;
+    if (remaining > 0) {
+      await Future.delayed(Duration(milliseconds: remaining));
+    }
+
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -88,9 +98,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
-      );
+      return const SplashScreen();
     }
     if (!_loggedIn) {
       return AuthScreen(
