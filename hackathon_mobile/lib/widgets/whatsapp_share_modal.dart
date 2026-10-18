@@ -25,7 +25,7 @@ class WhatsappShareModal extends StatefulWidget {
     this.backendUrl,
   });
 
-  static void show(
+  static Future<T?> show<T>(
     BuildContext context, {
     required String title,
     required String amountText,
@@ -35,7 +35,7 @@ class WhatsappShareModal extends StatefulWidget {
     bool isEscrow = false,
     String? backendUrl,
   }) {
-    AppBottomSheet.show(
+    return AppBottomSheet.show<T>(
       context,
       WhatsappShareModal(
         title: title,
@@ -77,7 +77,9 @@ Réf : ${widget.reference}
 Ouvrez ce lien pour payer :
 $_payLink
 
-Vous payez maintenant. L'argent est gardé. Donnez le code au marchand seulement quand vous avez reçu le colis.''';
+Vous payez maintenant. L'argent est gardé. Donnez le code au marchand seulement quand vous avez reçu le colis.
+
+Ce lien est valable 24 heures.''';
     } else {
       return '''Facture PayChain
 
@@ -86,7 +88,9 @@ Montant : ${widget.amountText}
 Réf : ${widget.reference}
 
 Ouvrez ce lien pour payer :
-$_payLink''';
+$_payLink
+
+Ce lien est valable 24 heures.''';
     }
   }
 

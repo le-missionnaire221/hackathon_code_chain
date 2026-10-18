@@ -65,5 +65,9 @@ class TransactionItem {
       status.contains('Libéré');
 
   bool get isLockedInEscrow =>
-      isEscrow && (escrowStatus == 'locked' || status.contains('Séquestré'));
+      isEscrow &&
+      (escrowStatus == 'locked' ||
+          status.toLowerCase().contains('gardé') ||
+          status.toLowerCase().contains('sequest') ||
+          status.contains('Séquestré'));
 }

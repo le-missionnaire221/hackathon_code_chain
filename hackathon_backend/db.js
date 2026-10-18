@@ -6,6 +6,9 @@ import crypto from 'node:crypto';
 const { Pool } = pg;
 
 export const SAT_TO_FCFA = 0.65;
+/** Durée de validité d’une facture Lightning / lien de paiement. */
+export const INVOICE_TTL_SECONDS = 24 * 60 * 60;
+export const INVOICE_TTL_MS = INVOICE_TTL_SECONDS * 1000;
 
 function connectionString() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -40,6 +43,10 @@ export function extractShortCode(preimage) {
 
 export function toInvoice(row) {
   if (!row) return null;
+  const createdAt = row.created_at;
+  const expiresAt = createdAt
+    ? new Date(new Date(createdAt).getTime() + INVOICE_TTL_MS).toISOString()
+    : null;
   return {
     reference: row.reference,
     userId: row.user_id,
@@ -53,10 +60,23 @@ export function toInvoice(row) {
     preimage: row.preimage,
     bolt11: row.bolt11 || '',
     request: row.bolt11 || '',
-    createdAt: row.created_at,
+    createdAt,
+    expiresAt,
     paidAt: row.paid_at,
     releasedAt: row.released_at,
   };
+}
+
+/** Passe une facture pending en expired si les 24 h sont dépassées. */
+export async function markExpiredIfNeeded(invoice) {
+  if (!invoice || invoice.status !== 'pending' || !invoice.createdAt) return invoice;
+  const age = Date.now() - new Date(invoice.createdAt).getTime();
+  if (age < INVOICE_TTL_MS) return invoice;
+  await pool.query(
+    `UPDATE invoices SET status = 'expired' WHERE reference = $1 AND status = 'pending'`,
+    [invoice.reference]
+  );
+  return { ...invoice, status: 'expired' };
 }
 
 export function publicUser(row) {
@@ -77,9 +97,9 @@ function displayStatus(invoice) {
   if (invoice.status !== 'paid') {
     return invoice.status === 'expired' ? 'Expiré' : 'En attente';
   }
-  if (invoice.isEscrow && invoice.escrowStatus === 'locked') return 'Séquestré 🔒';
-  if (invoice.isEscrow && invoice.escrowStatus === 'released') return 'Livré & Libéré 🔓';
-  return 'Confirmé ⚡';
+  if (invoice.isEscrow && invoice.escrowStatus === 'locked') return 'Argent gardé';
+  if (invoice.isEscrow && invoice.escrowStatus === 'released') return 'Livré';
+  return 'Confirmé';
 }
 
 export async function initDb() {

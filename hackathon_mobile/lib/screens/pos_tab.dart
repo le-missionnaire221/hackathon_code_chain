@@ -28,7 +28,7 @@ class PosTab extends StatefulWidget {
 class _PosTabState extends State<PosTab> {
   static const List<String> _fcfaPresets = ['500', '1000', '2500', '5000', '10000'];
   static const Duration _pollInterval = Duration(seconds: 2);
-  static const Duration _pollTimeout = Duration(minutes: 15);
+  static const Duration _pollTimeout = Duration(hours: 24);
 
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
@@ -256,7 +256,14 @@ class _PosTabState extends State<PosTab> {
       isDeliveryReceipt: false,
       isEscrow: _isDistanceMode,
       backendUrl: widget.backendUrl,
-    );
+    ).then((_) {
+      if (!mounted || _stage != _PosStage.waiting) return;
+      _resetToInput();
+      _showSnackbar(
+        'Lien prêt. Valable 24 h. Suivez le paiement dans Reçus.',
+        AppColors.primary,
+      );
+    });
   }
 
   void _shareProof() {
@@ -317,7 +324,7 @@ class _PosTabState extends State<PosTab> {
         break;
       case _PosStage.waiting:
         title = 'En attente du paiement';
-        subtitle = 'Le client scanne le QR code pour payer';
+        subtitle = 'Valable 24 h. Vous pouvez quitter cet écran.';
         break;
       case _PosStage.paid:
         if (_isDistanceMode) {
@@ -775,9 +782,19 @@ class _PosTabState extends State<PosTab> {
         const SizedBox(height: 6),
         TextButton.icon(
           style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-          onPressed: _resetToInput,
-          icon: const Icon(Icons.close_rounded, size: 18),
-          label: Text(_isExpired ? 'Nouveau paiement' : 'Annuler'),
+          onPressed: () {
+            if (_isExpired) {
+              _resetToInput();
+              return;
+            }
+            _resetToInput();
+            _showSnackbar(
+              'Paiement en attente 24 h. Le client peut encore payer avec le lien.',
+              AppColors.primary,
+            );
+          },
+          icon: Icon(_isExpired ? Icons.add_rounded : Icons.check_rounded, size: 18),
+          label: Text(_isExpired ? 'Nouveau paiement' : 'Continuer plus tard'),
         ),
       ],
     );
@@ -1121,12 +1138,24 @@ class _PosTabState extends State<PosTab> {
         const SizedBox(height: 10),
 
         // BOUTON NOUVELLE TRANSACTION
-        SizedBox(
-          height: 50,
-          child: OutlinedButton.icon(
+          SizedBox(
+            height: 50,
+            child: OutlinedButton.icon(
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Nouvelle vente', maxLines: 1, overflow: TextOverflow.ellipsis),
-            onPressed: _resetToInput,
+            label: Text(
+              isEscrowLocked ? 'Continuer plus tard' : 'Nouvelle vente',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onPressed: () {
+              _resetToInput();
+              if (isEscrowLocked) {
+                _showSnackbar(
+                  'Allez dans Reçus pour entrer le code à la livraison.',
+                  AppColors.primary,
+                );
+              }
+            },
           ),
         ),
       ],

@@ -197,7 +197,11 @@ class _HistoryTabState extends State<HistoryTab> {
               ...filtered.map(
                 (tx) => TransactionCard(
                   transaction: tx,
-                  onTap: () => ReceiptBottomSheet.show(context, tx),
+                  onTap: () => ReceiptBottomSheet.show(
+                    context,
+                    tx,
+                    onUpdated: widget.onRefresh,
+                  ),
                 ),
               ),
           ],

@@ -446,7 +446,7 @@ class WalletTab extends StatelessWidget {
         .take(4)
         .map((tx) => TransactionCard(
               transaction: tx,
-              onTap: () => ReceiptBottomSheet.show(context, tx),
+              onTap: () => ReceiptBottomSheet.show(context, tx, onUpdated: onRefresh),
             ))
         .toList();
   }

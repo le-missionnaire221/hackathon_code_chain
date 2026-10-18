@@ -3,7 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import { initDb, pool, getInvoice, createInvoiceRecord, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, publicInvoiceStatus, SAT_TO_FCFA } from './db.js';
+import { initDb, pool, getInvoice, createInvoiceRecord, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, publicInvoiceStatus, markExpiredIfNeeded, SAT_TO_FCFA } from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
 import { mountAdmin } from './admin.js';
@@ -77,7 +77,7 @@ app.post('/invoice', requireAuth, async (req, res) => {
       customer_id: customerId,
       amount: sats,
       description: label,
-      expiry: 3600,
+      expiry: 86400,
       reference: reference,
       auto_settle: false
     });
@@ -118,7 +118,9 @@ app.post('/invoice', requireAuth, async (req, res) => {
 });
 
 async function reconcileInvoice(invoice) {
-  if (!invoice || invoice.status === 'paid' || !invoice.bitnobId) return invoice;
+  if (!invoice) return invoice;
+  invoice = await markExpiredIfNeeded(invoice);
+  if (invoice.status === 'paid' || invoice.status === 'expired' || !invoice.bitnobId) return invoice;
   try {
     const bitnobCheck = await bitnob('GET', `/api/lightning/invoices/${invoice.bitnobId}`);
     if (bitnobCheck.data?.status === 'paid') {
@@ -181,10 +183,14 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
     if (existing.userId === req.user.id) {
       return res.status(400).json({ success: false, error: 'Vous ne pouvez pas payer votre propre QR code.' });
     }
-    if (existing.status === 'paid') {
-      return res.json({ success: true, ...existing, message: 'Cette facture est déjà payée sur Lightning.' });
+    const current = await markExpiredIfNeeded(existing);
+    if (current.status === 'expired') {
+      return res.status(400).json({ success: false, error: 'Ce paiement a expiré (24 heures). Demandez un nouveau lien.' });
     }
-    if (!existing.bolt11) {
+    if (current.status === 'paid') {
+      return res.json({ success: true, ...current, message: 'Cette facture est déjà payée sur Lightning.' });
+    }
+    if (!current.bolt11) {
       return res.status(400).json({ success: false, error: 'Cette facture n’a pas de code Lightning Bitnob.' });
     }
 
