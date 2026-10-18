@@ -198,6 +198,32 @@ class ApiService {
     return null;
   }
 
+  static Future<Map<String, dynamic>?> payPaychainAddress(
+    String backendUrl, {
+    required String address,
+    required int amountSats,
+    String? note,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$backendUrl/transfer/paychain-address'),
+        headers: _headers,
+        body: jsonEncode({
+          'address': address,
+          'amountSats': amountSats,
+          if (note != null && note.isNotEmpty) 'note': note,
+        }),
+      );
+      _guard(res);
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   static Future<String?> pingBackend(String backendUrl) async {
     final sw = Stopwatch()..start();
     try {

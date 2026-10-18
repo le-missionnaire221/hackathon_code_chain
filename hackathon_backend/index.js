@@ -3,7 +3,24 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import { initDb, pool, getInvoice, createInvoiceRecord, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, publicInvoiceStatus, markExpiredIfNeeded, SAT_TO_FCFA } from './db.js';
+import {
+  initDb,
+  pool,
+  getInvoice,
+  createInvoiceRecord,
+  settleInvoice,
+  releaseInvoice,
+  buildWalletPayload,
+  findInvoiceByScan,
+  payFromBuyerWallet,
+  publicInvoiceStatus,
+  markExpiredIfNeeded,
+  SAT_TO_FCFA,
+  findUserByReceiveTarget,
+  parsePaychainReceive,
+  paychainAddressForPhone,
+  transferToPaychainUser,
+} from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
 import { mountAdmin } from './admin.js';
@@ -164,13 +181,64 @@ app.get('/invoice/:reference/client-view', async (req, res) => {
   });
 });
 
-// === LECTURE D'UN QR LIGHTNING, D'UN LIEN OU D'UNE RÉFÉRENCE ===
+// === LECTURE D'UN QR LIGHTNING, D'UN LIEN, D'UNE RÉFÉRENCE OU ADRESSE RECEVOIR ===
 app.post('/invoice/lookup', async (req, res) => {
-  const invoice = await findInvoiceByScan(req.body?.code || req.body?.reference || '');
-  if (!invoice) {
-    return res.status(404).json({ error: 'QR code ou facture introuvable' });
+  const raw = req.body?.code || req.body?.reference || '';
+  const invoice = await findInvoiceByScan(raw);
+  if (invoice) {
+    return res.json({ type: 'invoice', ...publicInvoiceStatus(invoice) });
   }
-  res.json(publicInvoiceStatus(invoice));
+
+  if (parsePaychainReceive(raw)) {
+    const user = await findUserByReceiveTarget(raw);
+    if (!user || user.status !== 'active') {
+      return res.status(404).json({ error: 'Adresse PayChain introuvable' });
+    }
+    const address = paychainAddressForPhone(user.phone);
+    return res.json({
+      type: 'paychain_address',
+      address,
+      recipientUserId: user.id,
+      recipientName: user.full_name || 'Compte PayChain',
+      recipientPhone: user.phone,
+      status: 'ready',
+      description: `Envoyer à ${user.full_name || address}`,
+    });
+  }
+
+  return res.status(404).json({ error: 'QR code, facture ou adresse introuvable' });
+});
+
+// === ENVOI VERS UNE ADRESSE RECEVOIR PAYCHAIN (QR Recevoir) ===
+app.post('/transfer/paychain-address', requireAuth, async (req, res) => {
+  try {
+    const raw = req.body?.address || req.body?.code || '';
+    const amountSats = Number(req.body?.amountSats ?? req.body?.amount);
+    const user = await findUserByReceiveTarget(raw);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Adresse PayChain introuvable' });
+    }
+    const result = await transferToPaychainUser(
+      req.user.id,
+      user.id,
+      amountSats,
+      req.body?.note || `Envoi à ${user.full_name || paychainAddressForPhone(user.phone)}`
+    );
+    if (result.error) {
+      return res.status(result.status || 400).json({ success: false, error: result.error });
+    }
+    console.log(`[ENVOI] ${req.user.phone} → ${result.address} (${result.amountFcfa} FCFA)`);
+    return res.json({
+      success: true,
+      type: 'paychain_address',
+      status: 'paid',
+      ...result,
+      message: `${result.amountFcfa} FCFA envoyés à ${result.recipientName}.`,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Envoi impossible' });
+  }
 });
 
 // === PAIEMENT LIGHTNING VIA BITNOB SANDBOX ===

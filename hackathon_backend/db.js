@@ -274,6 +274,115 @@ export function extractScanCode(raw) {
   return text.trim();
 }
 
+/** Adresse de réception PayChain : 2217…@paychain.app ou paychain://receive/{userId} */
+export function parsePaychainReceive(raw) {
+  let text = String(raw || '').trim();
+  if (!text) return null;
+  if (text.toLowerCase().startsWith('lightning:')) text = text.slice('lightning:'.length).trim();
+  if (text.toLowerCase().startsWith('paychain://receive/')) {
+    const id = text.slice('paychain://receive/'.length).split('?')[0].split('#')[0].trim();
+    return id ? { kind: 'userId', value: id } : null;
+  }
+  const match = text.match(/^([^@\s]+)@([^@\s]+)$/i);
+  if (!match) return null;
+  const domain = match[2].toLowerCase();
+  if (domain !== 'paychain.app' && domain !== 'paychain.dakar') return null;
+  const phone = normalizePhone(match[1]);
+  return phone ? { kind: 'phone', value: phone } : null;
+}
+
+export function paychainAddressForPhone(phone) {
+  return `${normalizePhone(phone)}@paychain.app`;
+}
+
+export async function findUserByReceiveTarget(raw) {
+  const parsed = parsePaychainReceive(raw);
+  if (!parsed) return null;
+  if (parsed.kind === 'userId') return findUserById(parsed.value);
+  return findUserByPhone(parsed.value);
+}
+
+/** Transfert direct portefeuille → portefeuille (QR Recevoir). */
+export async function transferToPaychainUser(fromUserId, toUserId, amountSats, note) {
+  const amount = Number(amountSats);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return { status: 400, error: 'Montant invalide' };
+  }
+  if (!toUserId || fromUserId === toUserId) {
+    return { status: 400, error: 'Vous ne pouvez pas vous envoyer de l’argent à vous-même.' };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const recipient = await client.query(
+      `SELECT id, full_name, phone, status FROM users WHERE id = $1 FOR UPDATE`,
+      [toUserId]
+    );
+    if (!recipient.rows[0]) {
+      await client.query('ROLLBACK');
+      return { status: 404, error: 'Destinataire introuvable' };
+    }
+    if (recipient.rows[0].status !== 'active') {
+      await client.query('ROLLBACK');
+      return { status: 400, error: 'Ce compte destinataire est suspendu.' };
+    }
+
+    const senderWallet = await client.query(
+      'SELECT balance_sats FROM wallets WHERE user_id = $1 FOR UPDATE',
+      [fromUserId]
+    );
+    const balance = Number(senderWallet.rows[0]?.balance_sats || 0);
+    if (balance < amount) {
+      await client.query('ROLLBACK');
+      return {
+        status: 400,
+        error: `Solde insuffisant. Il faut ${amount} sats (≈ ${Math.round(amount * SAT_TO_FCFA)} FCFA).`,
+      };
+    }
+
+    await client.query(
+      'UPDATE wallets SET balance_sats = balance_sats - $2, updated_at = now() WHERE user_id = $1',
+      [fromUserId, amount]
+    );
+    await client.query(
+      'UPDATE wallets SET balance_sats = balance_sats + $2, updated_at = now() WHERE user_id = $1',
+      [toUserId, amount]
+    );
+
+    const reference = `TRF_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const recipientName = recipient.rows[0].full_name || 'Compte PayChain';
+    const label = note || `Envoi à ${recipientName}`;
+
+    await client.query(
+      `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
+       VALUES ($1, $2, 'p2p_send', $3, $4)`,
+      [fromUserId, -amount, reference, label]
+    );
+    await client.query(
+      `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
+       VALUES ($1, $2, 'p2p_receive', $3, $4)`,
+      [toUserId, amount, reference, `Reçu de transfert (${reference})`]
+    );
+
+    await client.query('COMMIT');
+    return {
+      success: true,
+      reference,
+      amountSats: amount,
+      amountFcfa: Math.round(amount * SAT_TO_FCFA),
+      recipientName,
+      recipientPhone: recipient.rows[0].phone,
+      address: paychainAddressForPhone(recipient.rows[0].phone),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 /** Statut public : sans code de déblocage ni preimage (réservé à l’acheteur après paiement). */
 export function publicInvoiceStatus(invoice) {
   if (!invoice) return null;
@@ -530,7 +639,9 @@ export async function buildWalletPayload(userId) {
   );
   const invoices = rows.map(toInvoice);
   const { rows: credits } = await pool.query(
-    `SELECT * FROM ledger WHERE user_id = $1 AND kind IN ('admin_credit', 'invoice_payment') ORDER BY created_at DESC`,
+    `SELECT * FROM ledger
+     WHERE user_id = $1 AND kind IN ('admin_credit', 'invoice_payment', 'p2p_send', 'p2p_receive')
+     ORDER BY created_at DESC`,
     [userId]
   );
 
@@ -551,22 +662,40 @@ export async function buildWalletPayload(userId) {
     request: invoice.bolt11,
   }));
 
-  const creditTx = credits.map((entry) => ({
-    id: entry.id,
-    reference: entry.reference || 'ADMIN',
-    title: entry.note || (entry.kind === 'invoice_payment' ? 'Paiement envoyé' : 'Ajustement administrateur'),
-    category: entry.kind === 'invoice_payment' ? 'Paiement envoyé' : 'Ajustement administrateur',
-    amountSats: Math.abs(Number(entry.amount_sats)),
-    amountFcfa: Math.round(Math.abs(Number(entry.amount_sats)) * SAT_TO_FCFA),
-    isCredit: Number(entry.amount_sats) >= 0,
-    date: entry.created_at,
-    status: 'Confirmé',
-    isEscrow: false,
-    escrowStatus: 'none',
-    releaseCode: null,
-    preimage: null,
-    request: null,
-  }));
+  const creditTx = credits.map((entry) => {
+    const kind = entry.kind;
+    let title = entry.note || 'Mouvement portefeuille';
+    let category = 'Portefeuille';
+    if (kind === 'invoice_payment') {
+      title = entry.note || 'Paiement envoyé';
+      category = 'Paiement envoyé';
+    } else if (kind === 'p2p_send') {
+      title = entry.note || 'Envoi PayChain';
+      category = 'Envoi';
+    } else if (kind === 'p2p_receive') {
+      title = entry.note || 'Réception PayChain';
+      category = 'Réception';
+    } else if (kind === 'admin_credit') {
+      title = entry.note || 'Ajustement administrateur';
+      category = 'Ajustement administrateur';
+    }
+    return {
+      id: entry.id,
+      reference: entry.reference || 'ADMIN',
+      title,
+      category,
+      amountSats: Math.abs(Number(entry.amount_sats)),
+      amountFcfa: Math.round(Math.abs(Number(entry.amount_sats)) * SAT_TO_FCFA),
+      isCredit: Number(entry.amount_sats) >= 0,
+      date: entry.created_at,
+      status: 'Confirmé',
+      isEscrow: false,
+      escrowStatus: 'none',
+      releaseCode: null,
+      preimage: null,
+      request: null,
+    };
+  });
 
   const transactions = [...invoiceTx, ...creditTx].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -585,6 +714,7 @@ export async function buildWalletPayload(userId) {
     btcPriceFcfa: 64850000,
     totalInvoices: invoices.length,
     paidInvoicesCount: invoices.filter((invoice) => invoice.status === 'paid').length,
+    receiveAddress: paychainAddressForPhone(user.phone),
     transactions,
     account: publicUser(user),
   };

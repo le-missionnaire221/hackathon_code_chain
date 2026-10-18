@@ -41,13 +41,16 @@ class BuyerPaymentSheet extends StatefulWidget {
 
 class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
   final TextEditingController _inputController = TextEditingController();
+  final TextEditingController _amountFcfaController = TextEditingController();
   bool _isLoading = false;
   bool _isPaying = false;
   String? _errorMessage;
 
-  // Détails de la facture trouvée
+  /// Facture marchand OU adresse Recevoir PayChain
   Map<String, dynamic>? _invoiceData;
   String? _extractedRef;
+
+  bool get _isAddressTransfer => _invoiceData?['type']?.toString() == 'paychain_address';
 
   @override
   void initState() {
@@ -64,12 +67,16 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
   @override
   void dispose() {
     _inputController.dispose();
+    _amountFcfaController.dispose();
     super.dispose();
   }
 
   String _cleanReference(String raw) {
     String text = raw.trim();
     final lower = text.toLowerCase();
+    if (lower.startsWith('lightning:')) {
+      text = text.substring('lightning:'.length).trim();
+    }
     if (lower.startsWith('paychain://pay/')) {
       text = text.substring('paychain://pay/'.length).split('?').first.split('#').first.trim();
     }
@@ -80,6 +87,12 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
       }
     }
     return text;
+  }
+
+  int _satsFromFcfaInput() {
+    final fcfa = double.tryParse(_amountFcfaController.text.replaceAll(',', '.').trim()) ?? 0;
+    if (fcfa <= 0) return 0;
+    return (fcfa / AppConstants.satRateInFcfa).round();
   }
 
   Future<void> _scanQr() async {
@@ -103,7 +116,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
   Future<void> _lookupInvoice(String raw) async {
     final ref = _cleanReference(raw);
     if (ref.isEmpty) {
-      setState(() => _errorMessage = 'Veuillez saisir ou coller une référence valide.');
+      setState(() => _errorMessage = 'Veuillez saisir, coller ou scanner un QR valide.');
       return;
     }
 
@@ -112,6 +125,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
       _errorMessage = null;
       _invoiceData = null;
       _extractedRef = ref;
+      _amountFcfaController.clear();
     });
 
     final res = await ApiService.lookupInvoice(widget.backendUrl, raw);
@@ -119,16 +133,30 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
     if (!mounted) return;
     setState(() {
       _isLoading = false;
-      if (res != null && res['error'] == null && res['reference'] != null) {
-        _invoiceData = res;
-        _extractedRef = res['reference']?.toString();
+      if (res != null && res['error'] == null) {
+        final type = res['type']?.toString();
+        if (type == 'paychain_address' || (res['address'] != null && res['recipientUserId'] != null)) {
+          _invoiceData = {...res, 'type': 'paychain_address'};
+          _extractedRef = res['address']?.toString() ?? ref;
+        } else if (res['reference'] != null) {
+          _invoiceData = {...res, 'type': res['type'] ?? 'invoice'};
+          _extractedRef = res['reference']?.toString();
+        } else {
+          _errorMessage = 'Commande ou adresse introuvable.';
+        }
       } else {
-        _errorMessage = 'Commande introuvable. Vérifiez la référence ou le lien.';
+        _errorMessage = res?['error']?.toString() ??
+            'QR introuvable. Scannez une facture ou une adresse Recevoir PayChain.';
       }
     });
   }
 
   Future<void> _confirmPayment() async {
+    if (_isAddressTransfer) {
+      await _confirmAddressTransfer();
+      return;
+    }
+
     final ref = _extractedRef;
     if (ref == null) return;
 
@@ -146,12 +174,57 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
     if (res != null && res['success'] == true) {
       HapticFeedback.heavyImpact();
       setState(() {
-        _invoiceData = res['invoice'] ?? res;
+        _invoiceData = {...?_invoiceData, ...res, 'status': 'paid', 'type': 'invoice'};
       });
       widget.onPaymentSuccess?.call();
     } else {
       setState(() {
-        _errorMessage = res?['error'] ?? 'Échec du règlement';
+        _errorMessage = res?['error']?.toString() ?? 'Échec du règlement';
+      });
+    }
+  }
+
+  Future<void> _confirmAddressTransfer() async {
+    final address = _invoiceData?['address']?.toString() ?? _extractedRef;
+    final sats = _satsFromFcfaInput();
+    if (address == null || address.isEmpty) return;
+    if (sats <= 0) {
+      setState(() => _errorMessage = 'Entrez un montant en FCFA à envoyer.');
+      return;
+    }
+
+    setState(() {
+      _isPaying = true;
+      _errorMessage = null;
+    });
+    HapticFeedback.mediumImpact();
+
+    final res = await ApiService.payPaychainAddress(
+      widget.backendUrl,
+      address: address,
+      amountSats: sats,
+    );
+
+    if (!mounted) return;
+    setState(() => _isPaying = false);
+
+    if (res != null && res['success'] == true) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _invoiceData = {
+          ...?_invoiceData,
+          ...res,
+          'type': 'paychain_address',
+          'status': 'paid',
+          'amount': res['amountSats'],
+          'amountFcfa': res['amountFcfa'],
+          'description': 'Envoi à ${res['recipientName'] ?? address}',
+        };
+      });
+      widget.onPaymentSuccess?.call();
+    } else {
+      setState(() {
+        _errorMessage = res?['error']?.toString() ?? 'Échec de l’envoi';
       });
     }
   }
@@ -168,10 +241,15 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
   Widget build(BuildContext context) {
     final isPaid = _invoiceData?['status'] == 'paid';
     final isEscrow = _invoiceData?['isEscrow'] == true;
+    final isAddress = _isAddressTransfer;
     final releaseCode = _invoiceData?['releaseCode']?.toString();
     final sats = int.tryParse(_invoiceData?['amount']?.toString() ?? '0') ?? 0;
     final fcfa = (_invoiceData?['amountFcfa'] as num?)?.toDouble() ?? sats * AppConstants.satRateInFcfa;
-    final merchantName = _invoiceData?['merchantName']?.toString();
+    final merchantName = (_invoiceData?['merchantName'] ?? _invoiceData?['recipientName'])?.toString();
+    final previewSats = isAddress ? _satsFromFcfaInput() : sats;
+    final previewFcfa = isAddress
+        ? (double.tryParse(_amountFcfaController.text.replaceAll(',', '.').trim()) ?? 0)
+        : fcfa;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -181,7 +259,6 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // En-tête
           Row(
             children: [
               Container(
@@ -192,7 +269,9 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  isEscrow ? Icons.shield_rounded : Icons.qr_code_scanner_rounded,
+                  isEscrow
+                      ? Icons.shield_rounded
+                      : (isAddress ? Icons.send_rounded : Icons.qr_code_scanner_rounded),
                   color: isEscrow ? AppColors.whatsappDark : AppColors.primary,
                   size: 24,
                 ),
@@ -203,7 +282,9 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isEscrow ? 'Espace Acheteur • Séquestre' : 'Régler une commande',
+                      isAddress
+                          ? 'Envoyer de l’argent'
+                          : (isEscrow ? 'Espace Acheteur • Séquestre' : 'Régler une commande'),
                       style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
@@ -211,9 +292,11 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Réglez et obtenez votre code secret de livraison',
-                      style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                    Text(
+                      isAddress
+                          ? 'Scan du QR Recevoir → choisissez le montant'
+                          : 'Réglez et obtenez votre code secret de livraison',
+                      style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -222,21 +305,20 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
           ),
           const SizedBox(height: 18),
 
-          // Champ de saisie ou de collage si pas encore chargé
           if (_invoiceData == null) ...[
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(
                 onPressed: _scanQr,
                 icon: const Icon(Icons.qr_code_scanner_rounded),
-                label: const Text('Scanner le QR du marchand'),
+                label: const Text('Scanner un QR (facture ou Recevoir)'),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _inputController,
               decoration: InputDecoration(
-                hintText: 'Collez le lien /pay/... ou la réf. ESC_...',
+                hintText: 'Lien /pay/…, réf. ou adresse …@paychain.app',
                 hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
                 prefixIcon: const Icon(Icons.link_rounded, color: AppColors.textSecondary, size: 20),
                 suffixIcon: IconButton(
@@ -252,11 +334,10 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
               icon: _isLoading
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.search_rounded, size: 20),
-              label: Text(_isLoading ? 'Recherche en cours…' : 'VÉRIFIER LA COMMANDE 🔍'),
+              label: Text(_isLoading ? 'Recherche en cours…' : 'VÉRIFIER'),
               onPressed: _isLoading ? null : () => _lookupInvoice(_inputController.text),
             ),
           ] else ...[
-            // CARTE COMMANDE TROUVÉE
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -275,21 +356,29 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: isEscrow ? AppColors.whatsappSoft : AppColors.chipBackground,
+                          color: isAddress
+                              ? AppColors.chipBackground
+                              : (isEscrow ? AppColors.whatsappSoft : AppColors.chipBackground),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          isEscrow ? 'Séquestre Anti-Arnaque' : 'Paiement direct',
+                          isAddress
+                              ? 'Adresse Recevoir'
+                              : (isEscrow ? 'Séquestre Anti-Arnaque' : 'Paiement direct'),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isEscrow ? AppColors.whatsappDark : AppColors.primary,
+                            color: isEscrow && !isAddress ? AppColors.whatsappDark : AppColors.primary,
                           ),
                         ),
                       ),
-                      Text(
-                        'Réf. ${_extractedRef ?? '-'}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                      Flexible(
+                        child: Text(
+                          isAddress ? (_invoiceData?['address']?.toString() ?? '') : 'Réf. ${_extractedRef ?? '-'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
                       ),
                     ],
                   ),
@@ -300,39 +389,59 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
                     ),
                   Text(
-                    _invoiceData?['description'] ?? 'Article PayChain',
+                    _invoiceData?['description']?.toString() ?? (isAddress ? 'Envoi PayChain' : 'Article PayChain'),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        Formatters.fcfa(fcfa),
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.textPrimary,
+                  if (!isAddress || isPaid) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          Formatters.fcfa(fcfa),
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '≈ ${Formatters.sats(sats)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (isAddress && !isPaid) ...[
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _amountFcfaController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Montant à envoyer (FCFA)',
+                        hintText: 'Ex. 1000',
+                        prefixIcon: Icon(Icons.payments_outlined),
                       ),
-                      const SizedBox(width: 8),
+                    ),
+                    if (previewSats > 0) ...[
+                      const SizedBox(height: 8),
                       Text(
-                        '≈ ${Formatters.sats(sats)}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                        ),
+                        '≈ ${Formatters.sats(previewSats)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary),
                       ),
                     ],
-                  ),
-
-                  // SI DÉJÀ RÉGLÉ : AFFICHAGE DU CODE SECRET ACHETEUR (OTP)
+                  ],
                   if (isPaid && isEscrow) ...[
                     const SizedBox(height: 16),
                     Container(
@@ -351,9 +460,9 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                       ),
                       child: Column(
                         children: [
-                          Row(
+                          const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
+                            children: [
                               Icon(Icons.vpn_key_rounded, color: AppColors.successDark, size: 18),
                               SizedBox(width: 6),
                               Text(
@@ -379,7 +488,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            '⚠️ Ne donnez ce code au livreur qu\'après avoir inspecté et validé votre colis physique !',
+                            'Ne donnez ce code au livreur qu’après avoir inspecté et validé votre colis.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11.5,
@@ -397,7 +506,6 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
             ),
             const SizedBox(height: 14),
 
-            // BOUTON PAYER SI NON ENCORE RÉGLÉ
             if (!isPaid) ...[
               Container(
                 padding: const EdgeInsets.all(12),
@@ -406,23 +514,29 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  'Ce compte va débiter ${Formatters.fcfa(fcfa)}. Le marchand n’est crédité que lorsque vous appuyez sur Payer.',
+                  isAddress
+                      ? (previewSats > 0
+                          ? 'Votre solde sera débité de ${Formatters.fcfa(previewFcfa)}. Le destinataire reçoit l’argent tout de suite.'
+                          : 'Entrez le montant puis validez l’envoi.')
+                      : 'Ce compte va débiter ${Formatters.fcfa(fcfa)}. Le marchand n’est crédité que lorsque vous appuyez sur Payer.',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.amberDark, height: 1.35),
                 ),
               ),
               const SizedBox(height: 10),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isEscrow ? AppColors.whatsapp : AppColors.primary,
+                  backgroundColor: isEscrow && !isAddress ? AppColors.whatsapp : AppColors.primary,
                   foregroundColor: Colors.white,
                 ),
                 icon: _isPaying
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.payments_rounded, size: 20),
+                    : Icon(isAddress ? Icons.send_rounded : Icons.payments_rounded, size: 20),
                 label: Text(
                   _isPaying
-                      ? 'Règlement en cours…'
-                      : 'PAYER ${Formatters.fcfa(fcfa)}',
+                      ? (isAddress ? 'Envoi en cours…' : 'Règlement en cours…')
+                      : (isAddress
+                          ? (previewSats > 0 ? 'ENVOYER ${Formatters.fcfa(previewFcfa)}' : 'ENVOYER')
+                          : 'PAYER ${Formatters.fcfa(fcfa)}'),
                 ),
                 onPressed: _isPaying ? null : _confirmPayment,
               ),
@@ -437,15 +551,18 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
               ],
               OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Fermer'),
+                child: Text(isAddress ? 'Envoi terminé — Fermer' : 'Fermer'),
               ),
             ],
 
             if (!isPaid) ...[
               const SizedBox(height: 6),
               TextButton(
-                onPressed: () => setState(() => _invoiceData = null),
-                child: const Text('Vérifier une autre commande'),
+                onPressed: () => setState(() {
+                  _invoiceData = null;
+                  _amountFcfaController.clear();
+                }),
+                child: Text(isAddress ? 'Scanner une autre adresse' : 'Vérifier une autre commande'),
               ),
             ],
           ],

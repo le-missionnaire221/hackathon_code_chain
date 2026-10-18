@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../core/constants/app_colors.dart';
-import '../core/constants/app_constants.dart';
+import '../core/services/session.dart';
 import 'common/app_bottom_sheet.dart';
 
 class BlinkAddressSheet extends StatelessWidget {
   const BlinkAddressSheet({super.key});
+
+  static String get receiveAddress {
+    final phone = (Session.phone ?? '').replaceAll(RegExp(r'\D'), '');
+    if (phone.isEmpty) return 'compte@paychain.app';
+    return '$phone@paychain.app';
+  }
 
   static void show(BuildContext context) {
     AppBottomSheet.show(context, const BlinkAddressSheet());
@@ -14,13 +20,14 @@ class BlinkAddressSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const address = AppConstants.blinkLightningAddress;
+    final address = receiveAddress;
+    final qrPayload = 'lightning:$address';
 
     void copy() {
-      Clipboard.setData(const ClipboardData(text: address));
+      Clipboard.setData(ClipboardData(text: address));
       HapticFeedback.lightImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adresse Lightning copiée !'), backgroundColor: AppColors.primary),
+        const SnackBar(content: Text('Adresse PayChain copiée !'), backgroundColor: AppColors.primary),
       );
     }
 
@@ -38,13 +45,13 @@ class BlinkAddressSheet extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Recevoir des paiements',
+          'Recevoir de l’argent',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
         ),
         const SizedBox(height: 4),
         const Text(
-          'Partagez cette adresse à vos clients et à la diaspora : ils vous paient depuis n\'importe quel pays.',
+          'Montrez ce QR ou partagez votre adresse. Un autre compte PayChain scanne et vous envoie un montant.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
         ),
@@ -61,7 +68,7 @@ class BlinkAddressSheet extends StatelessWidget {
                   border: Border.all(color: AppColors.border, width: 1.5),
                 ),
                 child: QrImageView(
-                  data: 'lightning:$address',
+                  data: qrPayload,
                   version: QrVersions.auto,
                   size: size,
                   padding: EdgeInsets.zero,
@@ -88,12 +95,12 @@ class BlinkAddressSheet extends StatelessWidget {
                 children: [
                   const Icon(Icons.alternate_email_rounded, size: 18, color: AppColors.primary),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       address,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary, fontSize: 14),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary, fontSize: 14),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -113,9 +120,9 @@ class BlinkAddressSheet extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _Feature(icon: Icons.money_off_rounded, label: '0 frais'),
+            _Feature(icon: Icons.qr_code_scanner_rounded, label: 'Scannable'),
             _Feature(icon: Icons.speed_rounded, label: 'Instantané'),
-            _Feature(icon: Icons.public_rounded, label: 'Mondial'),
+            _Feature(icon: Icons.account_balance_wallet_rounded, label: 'PayChain'),
           ],
         ),
         const SizedBox(height: 20),
@@ -140,18 +147,17 @@ class _Feature extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: AppColors.success),
-          const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textBody)),
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
         ],
       ),
     );
