@@ -302,8 +302,11 @@ export async function findUserByReceiveTarget(raw) {
   return findUserByPhone(parsed.value);
 }
 
-/** Transfert direct portefeuille → portefeuille (QR Recevoir). */
-export async function transferToPaychainUser(fromUserId, toUserId, amountSats, note) {
+/**
+ * Transfert portefeuille → portefeuille (QR Recevoir).
+ * @param {{ reference?: string, bitnobId?: string, preimage?: string, tracedOnBitnob?: boolean }} [meta]
+ */
+export async function transferToPaychainUser(fromUserId, toUserId, amountSats, note, meta = {}) {
   const amount = Number(amountSats);
   if (!Number.isInteger(amount) || amount <= 0) {
     return { status: 400, error: 'Montant invalide' };
@@ -350,9 +353,11 @@ export async function transferToPaychainUser(fromUserId, toUserId, amountSats, n
       [toUserId, amount]
     );
 
-    const reference = `TRF_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const reference = meta.reference || `TRF_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     const recipientName = recipient.rows[0].full_name || 'Compte PayChain';
-    const label = note || `Envoi à ${recipientName}`;
+    const bitnobTag = meta.bitnobId ? ` · Bitnob ${meta.bitnobId}` : '';
+    const label = (note || `Envoi à ${recipientName}`) + bitnobTag;
+    const receiveLabel = `Reçu de transfert (${reference})${bitnobTag}`;
 
     await client.query(
       `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
@@ -362,7 +367,7 @@ export async function transferToPaychainUser(fromUserId, toUserId, amountSats, n
     await client.query(
       `INSERT INTO ledger (user_id, amount_sats, kind, reference, note)
        VALUES ($1, $2, 'p2p_receive', $3, $4)`,
-      [toUserId, amount, reference, `Reçu de transfert (${reference})`]
+      [toUserId, amount, reference, receiveLabel]
     );
 
     await client.query('COMMIT');
@@ -374,6 +379,9 @@ export async function transferToPaychainUser(fromUserId, toUserId, amountSats, n
       recipientName,
       recipientPhone: recipient.rows[0].phone,
       address: paychainAddressForPhone(recipient.rows[0].phone),
+      bitnobId: meta.bitnobId || null,
+      tracedOnBitnob: Boolean(meta.tracedOnBitnob),
+      preimage: meta.preimage || null,
     };
   } catch (error) {
     await client.query('ROLLBACK');

@@ -232,30 +232,88 @@ app.post('/invoice/lookup', async (req, res) => {
 });
 
 // === ENVOI VERS UNE ADRESSE RECEVOIR PAYCHAIN (QR Recevoir) ===
+// Trace Bitnob : crée une invoice Lightning + la paie (visible sandbox), puis crédite PayChain.
 app.post('/transfer/paychain-address', requireAuth, async (req, res) => {
   try {
     const raw = req.body?.address || req.body?.code || '';
     const amountSats = Number(req.body?.amountSats ?? req.body?.amount);
+    if (!Number.isInteger(amountSats) || amountSats <= 0) {
+      return res.status(400).json({ success: false, error: 'Montant invalide' });
+    }
     const user = await findUserByReceiveTarget(raw);
     if (!user) {
       return res.status(404).json({ success: false, error: 'Adresse PayChain introuvable' });
     }
+    if (user.id === req.user.id) {
+      return res.status(400).json({ success: false, error: 'Vous ne pouvez pas vous envoyer de l’argent à vous-même.' });
+    }
+
+    const reference = `TRF_${Date.now()}`;
+    const address = paychainAddressForPhone(user.phone);
+    const label = req.body?.note || `PayChain P2P → ${user.full_name || address}`;
+
+    let bitnobMeta = { tracedOnBitnob: false, reference };
+    try {
+      const invoiceResponse = await bitnob('POST', '/api/lightning/invoices', {
+        amount: amountSats,
+        description: label,
+        expiry: 3600,
+        reference,
+        auto_settle: false,
+      });
+      if (invoiceResponse.status >= 400 || invoiceResponse.error || invoiceResponse.code) {
+        console.error('[ENVOI Bitnob create]', invoiceResponse);
+      } else {
+        const payload = invoiceResponse.data || {};
+        const bitnobId = payload.id;
+        const bolt11 = String(payload.request || '').replace(/^lightning:/i, '');
+        if (bolt11) {
+          const paid = await bitnob('POST', '/api/lightning/pay', {
+            request: bolt11,
+            reference: `PAY_${reference}`,
+          });
+          const bitnobStatus = paid?.data?.status;
+          const preimage = paid?.data?.preimage;
+          if ((bitnobStatus === 'paid' || preimage) && bitnobId) {
+            bitnobMeta = {
+              reference,
+              bitnobId,
+              bolt11,
+              preimage: preimage || null,
+              tracedOnBitnob: true,
+            };
+            console.log(`[ENVOI Bitnob] ${reference} tracé (invoice ${bitnobId})`);
+          } else {
+            console.warn('[ENVOI Bitnob pay] non settled:', paid);
+          }
+        }
+      }
+    } catch (bitnobErr) {
+      console.error('[ENVOI Bitnob]', bitnobErr);
+    }
+
     const result = await transferToPaychainUser(
       req.user.id,
       user.id,
       amountSats,
-      req.body?.note || `Envoi à ${user.full_name || paychainAddressForPhone(user.phone)}`
+      label,
+      bitnobMeta
     );
     if (result.error) {
       return res.status(result.status || 400).json({ success: false, error: result.error });
     }
-    console.log(`[ENVOI] ${req.user.phone} → ${result.address} (${result.amountFcfa} FCFA)`);
+    console.log(
+      `[ENVOI] ${req.user.phone} → ${result.address} (${result.amountFcfa} FCFA)` +
+        (result.tracedOnBitnob ? ' [Bitnob OK]' : ' [Bitnob non tracé — solde PayChain OK]')
+    );
     return res.json({
       success: true,
       type: 'paychain_address',
       status: 'paid',
       ...result,
-      message: `${result.amountFcfa} FCFA envoyés à ${result.recipientName}.`,
+      message: result.tracedOnBitnob
+        ? `${result.amountFcfa} FCFA envoyés à ${result.recipientName} (tracé sur Bitnob).`
+        : `${result.amountFcfa} FCFA envoyés à ${result.recipientName}. Trace Bitnob indisponible (sandbox) — solde PayChain mis à jour.`,
     });
   } catch (error) {
     console.error(error);
