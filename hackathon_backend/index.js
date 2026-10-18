@@ -50,6 +50,11 @@ mountAuth(app);
 mountDocs(app);
 mountAdmin(app);
 
+// Racine → documentation Swagger
+app.get('/', (req, res) => {
+  res.redirect(302, '/docs');
+});
+
 // === ROUTE DE SANTÉ (HEALTHCHECK RÉEL) ===
 app.get('/health', async (req, res) => {
   try {
