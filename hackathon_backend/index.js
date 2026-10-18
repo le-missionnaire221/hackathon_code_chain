@@ -71,7 +71,7 @@ app.get('/branding', async (req, res) => {
   }
 });
 
-// Racine → page live (install APK + liens démo). Swagger reste sur /docs
+// Racine → page live (install APK + liens démo). Swagger reste UNIQUEMENT sur /docs
 function sendLivePage(req, res) {
   const file = path.join(__dirname, 'public', 'live.html');
   const localApk = path.join(__dirname, 'public', 'downloads', 'app-release.apk');
@@ -83,13 +83,16 @@ function sendLivePage(req, res) {
   } else {
     html = html.replace(
       /<a class="btn btn-primary" id="apk-btn"[\s\S]*?<\/a>/,
-      `<a class="btn btn-primary" id="apk-btn" href="/docs" style="opacity:.85">APK bientôt — voir l’API en attendant</a>`
+      `<a class="btn btn-primary" id="apk-btn" href="#install" style="opacity:.9">APK : configurez APK_DOWNLOAD_URL (Drive)</a>`
     );
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
   res.type('html').send(html);
 }
 app.get('/', sendLivePage);
 app.get('/live', sendLivePage);
+app.get('/app', sendLivePage);
 
 // === ROUTE DE SANTÉ (HEALTHCHECK RÉEL) ===
 app.get('/health', async (req, res) => {
