@@ -103,33 +103,33 @@ class _WalletTabState extends State<WalletTab> {
   }
 
   // ─── En-tête profil ─────────────────────────
-    Widget _buildHeader(BuildContext context) {
+      Widget _buildHeader(BuildContext context) {
+    final name = widget.accountName.trim().isNotEmpty ? widget.accountName.trim() : 'Marchand';
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Bonjour 👋',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-            ),
+      padding: const EdgeInsets.only(top: 6, bottom: 4),
+      child: Text.rich(
+        TextSpan(
+          text: 'Bonjour ',
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+            letterSpacing: -0.3,
           ),
-          const SizedBox(height: 4),
-          Text(
-            widget.accountName.isNotEmpty ? widget.accountName : 'Marchand',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.6,
-              color: AppColors.sapphire,
+          children: [
+            TextSpan(
+              text: name,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: AppColors.sapphire,
+                letterSpacing: -0.4,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
