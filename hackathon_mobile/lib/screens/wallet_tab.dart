@@ -104,7 +104,7 @@ class _WalletTabState extends State<WalletTab> {
 
   // ─── En-tête profil ─────────────────────────
       Widget _buildHeader(BuildContext context) {
-    final name = widget.accountName.trim().isNotEmpty ? widget.accountName.trim() : 'Marchand';
+    final name = widget.accountName.trim();
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 4),
       child: Text.rich(

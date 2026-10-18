@@ -43,7 +43,7 @@ class TransactionItem {
       id: json['id']?.toString() ?? '',
       reference: json['reference']?.toString() ?? 'N/A',
       title: json['title']?.toString() ?? 'Paiement Lightning',
-      category: json['category']?.toString() ?? 'Encaissement Marchand POS',
+      category: json['category']?.toString() ?? 'Paiement Lightning',
       amountSats: (json['amountSats'] as num?)?.toInt() ?? 0,
       amountFcfa: (json['amountFcfa'] as num?)?.toDouble() ?? 0.0,
       isCredit: json['isCredit'] ?? true,

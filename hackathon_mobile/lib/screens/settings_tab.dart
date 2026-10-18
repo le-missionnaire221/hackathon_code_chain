@@ -59,7 +59,7 @@ class _SettingsTabState extends State<SettingsTab> {
   String get _roleLabel {
     final role = (Session.role ?? 'user').toLowerCase();
     if (role == 'admin') return 'Administrateur';
-    return 'Marchand';
+    return 'Compte vérifié';
   }
 
   String get _receiveAddress => BlinkAddressSheet.receiveAddress;
