@@ -153,10 +153,11 @@ async function reconcileInvoice(invoice) {
 
 // === SUIVI DU STATUT DE L'INVOICE & DU SÉQUESTRE ===
 app.get('/invoice/:reference/status', async (req, res) => {
-  const invoice = await getInvoice(req.params.reference);
+  let invoice = await getInvoice(req.params.reference);
   if (!invoice) {
     return res.status(404).json({ error: "Invoice non trouvée" });
   }
+  invoice = await markExpiredIfNeeded(invoice);
   res.json(publicInvoiceStatus(await reconcileInvoice(invoice)));
 });
 
@@ -184,8 +185,24 @@ app.get('/invoice/:reference/client-view', async (req, res) => {
 // === LECTURE D'UN QR LIGHTNING, D'UN LIEN, D'UNE RÉFÉRENCE OU ADRESSE RECEVOIR ===
 app.post('/invoice/lookup', async (req, res) => {
   const raw = req.body?.code || req.body?.reference || '';
-  const invoice = await findInvoiceByScan(raw);
+  let invoice = await findInvoiceByScan(raw);
   if (invoice) {
+    invoice = await markExpiredIfNeeded(invoice);
+    if (invoice.status === 'expired') {
+      return res.status(400).json({
+        type: 'invoice',
+        ...publicInvoiceStatus(invoice),
+        error: 'Ce QR / lien a expiré après 24 heures. Demandez un nouveau paiement.',
+      });
+    }
+    if (invoice.status === 'paid') {
+      return res.json({
+        type: 'invoice',
+        ...publicInvoiceStatus(invoice),
+        alreadyPaid: true,
+        message: 'Ce QR est déjà payé. Un seul paiement est accepté.',
+      });
+    }
     return res.json({ type: 'invoice', ...publicInvoiceStatus(invoice) });
   }
 
@@ -253,10 +270,18 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
     }
     const current = await markExpiredIfNeeded(existing);
     if (current.status === 'expired') {
-      return res.status(400).json({ success: false, error: 'Ce paiement a expiré (24 heures). Demandez un nouveau lien.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Ce paiement a expiré (24 heures). Demandez un nouveau QR ou lien.',
+      });
     }
     if (current.status === 'paid') {
-      return res.json({ success: true, ...current, message: 'Cette facture est déjà payée sur Lightning.' });
+      return res.status(409).json({
+        success: false,
+        error: 'Ce QR / cette facture est déjà payée. Un seul paiement est accepté.',
+        status: 'paid',
+        reference: current.reference,
+      });
     }
     if (!current.bolt11) {
       return res.status(400).json({ success: false, error: 'Cette facture n’a pas de code Lightning Bitnob.' });
@@ -272,6 +297,12 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
     const preimage = paid?.data?.preimage;
     if (bitnobStatus === 'paid' && preimage) {
       const invoice = await settleInvoice(existing.reference, { preimage });
+      if (!invoice || invoice.status !== 'paid') {
+        return res.status(409).json({
+          success: false,
+          error: 'Ce QR / cette facture est déjà payée. Un seul paiement est accepté.',
+        });
+      }
       const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
       console.log(`[BITNOB PAY] ${existing.reference} réglée sur Lightning (${fcfa} FCFA)`);
       return res.json({
@@ -308,9 +339,7 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
       escrowStatus: invoice.escrowStatus,
       releaseCode: invoice.releaseCode,
       preimage: invoice.preimage,
-      message: result.already
-        ? 'Cette facture est déjà payée.'
-        : `${fcfa} FCFA débités de ce compte. ${invoice.merchantName} est crédité.`
+      message: `${fcfa} FCFA débités de ce compte. ${invoice.merchantName} est crédité.`,
     });
   } catch (error) {
     console.error(error);
@@ -321,8 +350,9 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
 // === PAGE WEB DE PAIEMENT SÉCURISÉ (ADAPTATIVE MOBILE & PC) ===
 app.get('/pay/:reference', async (req, res) => {
   const { reference } = req.params;
-  const invoice = await getInvoice(reference);
+  let invoice = await getInvoice(reference);
   if (invoice) {
+    invoice = await markExpiredIfNeeded(invoice);
     invoice.description = String(invoice.description || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -350,6 +380,31 @@ app.get('/pay/:reference', async (req, res) => {
         <div class="card">
           <h2>⚠️ Commande Introuvable</h2>
           <p>Cette facture n'existe pas ou a expiré. Veuillez contacter le vendeur sur WhatsApp pour recevoir un nouveau lien.</p>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+
+  if (invoice.status === 'expired') {
+    return res.status(410).send(`
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Paiement expiré - PayChain Dakar</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0e14; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; text-align: center; }
+          .card { background: #161b26; border: 1px solid #232b3e; border-radius: 20px; padding: 32px 24px; max-width: 420px; width: 100%; }
+          h2 { color: #f59e0b; margin-top: 0; }
+          p { color: #94a3b8; font-size: 15px; line-height: 1.5; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Paiement expiré</h2>
+          <p>Ce QR / lien n’est plus valable après 24 heures. Demandez au vendeur un nouveau paiement.</p>
         </div>
       </body>
       </html>

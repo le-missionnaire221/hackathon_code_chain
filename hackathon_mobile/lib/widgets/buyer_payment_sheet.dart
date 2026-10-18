@@ -133,7 +133,10 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
     if (!mounted) return;
     setState(() {
       _isLoading = false;
-      if (res != null && res['error'] == null) {
+      if (res != null && res['error'] != null && res['status']?.toString() == 'expired') {
+        _errorMessage = res['error']?.toString() ??
+            'Ce QR / lien a expiré après 24 heures. Demandez un nouveau paiement.';
+      } else if (res != null && res['error'] == null) {
         final type = res['type']?.toString();
         if (type == 'paychain_address' || (res['address'] != null && res['recipientUserId'] != null)) {
           _invoiceData = {...res, 'type': 'paychain_address'};
@@ -141,6 +144,9 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
         } else if (res['reference'] != null) {
           _invoiceData = {...res, 'type': res['type'] ?? 'invoice'};
           _extractedRef = res['reference']?.toString();
+          if (res['status']?.toString() == 'paid' || res['alreadyPaid'] == true) {
+            _errorMessage = 'Ce QR est déjà payé. Un seul paiement est accepté.';
+          }
         } else {
           _errorMessage = 'Commande ou adresse introuvable.';
         }

@@ -421,11 +421,18 @@ export async function payFromBuyerWallet(reference, buyerId) {
     const merchant = await client.query('SELECT full_name FROM users WHERE id = $1', [row.user_id]);
     const merchantName = merchant.rows[0]?.full_name || 'Marchand PayChain';
     if (row.status === 'paid') {
-      await client.query('COMMIT');
-      const invoice = toInvoice(row);
-      invoice.merchantName = merchantName;
-      invoice.amountFcfa = Math.round(invoice.amount * SAT_TO_FCFA);
-      return { invoice, already: true };
+      await client.query('ROLLBACK');
+      return {
+        status: 409,
+        error: 'Ce QR / cette facture est déjà payée. Un seul paiement est accepté.',
+      };
+    }
+    if (row.status === 'expired') {
+      await client.query('ROLLBACK');
+      return {
+        status: 400,
+        error: 'Ce paiement a expiré (24 heures). Demandez un nouveau QR ou lien.',
+      };
     }
     if (row.user_id === buyerId) {
       await client.query('ROLLBACK');
@@ -458,10 +465,17 @@ export async function payFromBuyerWallet(reference, buyerId) {
     const updated = await client.query(
       `UPDATE invoices
        SET status = 'paid', preimage = $2, release_code = $3, escrow_status = $4, paid_at = now()
-       WHERE reference = $1
+       WHERE reference = $1 AND status = 'pending'
        RETURNING *`,
       [reference, image, code, escrowStatus]
     );
+    if (!updated.rows[0]) {
+      await client.query('ROLLBACK');
+      return {
+        status: 409,
+        error: 'Ce QR / cette facture est déjà payée. Un seul paiement est accepté.',
+      };
+    }
 
     if (row.is_escrow) {
       await client.query(
@@ -528,10 +542,14 @@ export async function settleInvoice(reference, { preimage } = {}) {
     const updated = await client.query(
       `UPDATE invoices
        SET status = 'paid', preimage = $2, release_code = $3, escrow_status = $4, paid_at = now()
-       WHERE reference = $1
+       WHERE reference = $1 AND status = 'pending'
        RETURNING *`,
       [reference, image, code, escrowStatus]
     );
+    if (!updated.rows[0]) {
+      await client.query('COMMIT');
+      return toInvoice(rows[0]);
+    }
 
     if (rows[0].is_escrow) {
       await client.query(
