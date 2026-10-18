@@ -137,28 +137,6 @@ class WalletTab extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        InkWell(
-          onTap: () => BuyerPaymentSheet.show(
-            context,
-            backendUrl: backendUrl,
-            onPaymentSuccess: onRefresh,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.chipBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-            ),
-            child: const Icon(
-              Icons.qr_code_scanner_rounded,
-              size: 20,
-              color: AppColors.primary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
         StatusPill(
           label: isBackendOnline ? 'Bitnob actif' : 'Hors ligne',
           tone: isBackendOnline ? PillTone.success : PillTone.error,
@@ -286,7 +264,7 @@ class WalletTab extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _QuickAction(
-                          icon: Icons.bolt_rounded,
+                          icon: Icons.point_of_sale_rounded,
                           label: 'Encaisser',
                           highlight: true,
                           onTap: onNavigateToPos,
@@ -294,8 +272,8 @@ class WalletTab extends StatelessWidget {
                       ),
                       Expanded(
                         child: _QuickAction(
-                          icon: Icons.shield_rounded,
-                          label: 'Payer 🛡️',
+                          icon: Icons.qr_code_scanner_rounded,
+                          label: 'Scanner',
                           onTap: () => BuyerPaymentSheet.show(
                             context,
                             backendUrl: backendUrl,
@@ -456,7 +434,7 @@ class WalletTab extends StatelessWidget {
     if (transactions.isEmpty) {
       return [
         EmptyState(
-          icon: Icons.bolt_rounded,
+          icon: Icons.point_of_sale_rounded,
           title: 'Aucune facture pour le moment',
           message: 'Créez votre premier encaissement Lightning en quelques secondes.',
           actionLabel: 'Encaisser maintenant',

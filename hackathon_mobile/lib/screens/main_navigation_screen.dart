@@ -157,8 +157,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               label: 'Accueil',
             ),
             NavigationDestination(
-              icon: Icon(Icons.bolt_outlined),
-              selectedIcon: Icon(Icons.bolt_rounded),
+              icon: Icon(Icons.point_of_sale_outlined),
+              selectedIcon: Icon(Icons.point_of_sale_rounded),
               label: 'Encaisser',
             ),
             NavigationDestination(
