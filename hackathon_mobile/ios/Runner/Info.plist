@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Hackathon Mobile</string>
+	<string>RAK TAK CASH</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>hackathon_mobile</string>
+	<string>RAK TAK CASH</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,7 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>PayChain utilise la caméra pour scanner le QR code Lightning du marchand.</string>
+	<string>RAK TAK CASH utilise la caméra pour scanner les QR codes de paiement.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

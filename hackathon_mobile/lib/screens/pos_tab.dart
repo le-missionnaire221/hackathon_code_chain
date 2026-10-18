@@ -103,7 +103,7 @@ class _PosTabState extends State<PosTab> {
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
-    final description = _descController.text.trim().isEmpty ? 'Paiement PayChain' : _descController.text.trim();
+    final description = _descController.text.trim().isEmpty ? 'Paiement RAK TAK CASH' : _descController.text.trim();
     final data = await ApiService.createInvoice(
       widget.backendUrl,
       amount: sats,

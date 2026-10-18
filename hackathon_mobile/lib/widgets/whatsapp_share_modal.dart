@@ -68,7 +68,7 @@ ${widget.bolt11OrPreimage}
 
 La remise du colis a été certifiée et les fonds sont définitivement libérés.''';
     } else if (widget.isEscrow) {
-      return '''Commande PayChain — livraison sécurisée
+      return '''Commande RAK TAK CASH — livraison sécurisée
 
 Article : ${widget.title}
 Montant : ${widget.amountText}
@@ -81,7 +81,7 @@ Vous payez maintenant. L'argent est gardé. Donnez le code au marchand seulement
 
 Ce lien est valable 24 heures.''';
     } else {
-      return '''Facture PayChain
+      return '''Facture RAK TAK CASH
 
 Article : ${widget.title}
 Montant : ${widget.amountText}
@@ -237,7 +237,7 @@ Ce lien est valable 24 heures.''';
             label: const Text('Partager le lien', maxLines: 1, overflow: TextOverflow.ellipsis),
             onPressed: () async {
               final nav = Navigator.of(context);
-              await Share.share(_formattedMessage, subject: 'Paiement PayChain');
+              await Share.share(_formattedMessage, subject: 'Paiement RAK TAK CASH');
               nav.pop();
             },
           ),

@@ -13,7 +13,7 @@ class Session {
     final name = (fullName ?? '').trim();
     if (name.isNotEmpty) return name;
     if (phone != null && phone!.isNotEmpty) return '+$phone';
-    return 'Compte PayChain';
+    return 'Compte RAK TAK CASH';
   }
 
   static Future<bool> restore() async {

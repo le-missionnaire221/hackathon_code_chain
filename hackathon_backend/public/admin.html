@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PayChain Admin</title>
+  <title>RAK TAK CASH Admin</title>
   <style>
     :root {
       --blue: #0052ff;
@@ -91,9 +91,12 @@
 </head>
 <body>
   <header>
-    <div>
-      <h1>PayChain Admin</h1>
-      <p id="subtitle">Contrôle des comptes et des portefeuilles</p>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <img id="header-logo" src="/static/logo_default.jpg" alt="Logo" style="height:42px;width:auto;border-radius:8px;background:#fff;padding:2px;" />
+      <div>
+        <h1 id="header-title">RAK TAK CASH Admin</h1>
+        <p id="subtitle">Contrôle des comptes, portefeuilles et branding</p>
+      </div>
     </div>
     <button class="ghost" id="logout" hidden>Déconnexion</button>
   </header>
@@ -109,6 +112,23 @@
     </section>
     <section id="dashboard" hidden>
       <div class="kpis" id="kpis"></div>
+      <div class="panel">
+        <h2>Apparence de l’application</h2>
+        <p style="margin:0 0 14px;color:var(--muted);font-size:13px;">Changez le nom et le logo visibles dans l’app et sur les pages de paiement.</p>
+        <div style="display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:start;">
+          <div>
+            <img id="brand-preview" src="/static/logo_default.jpg" alt="Aperçu logo" style="width:140px;height:140px;object-fit:contain;border:1px solid var(--line);border-radius:14px;background:#0b0e14;" />
+          </div>
+          <div>
+            <label>Nom de l’application</label>
+            <input id="brand-name" placeholder="RAK TAK CASH" />
+            <label>Nouveau logo (PNG / JPG)</label>
+            <input id="brand-logo" type="file" accept="image/png,image/jpeg,image/webp" style="padding:8px;" />
+            <div class="error" id="brand-error"></div>
+            <button id="brand-save" type="button">Enregistrer nom & logo</button>
+          </div>
+        </div>
+      </div>
       <div class="panel">
         <h2>Comptes</h2>
         <table>
@@ -144,12 +164,25 @@
     </section>
   </main>
   <script>
-    const tokenKey = 'paychain_admin_token';
+    const tokenKey = 'raktak_admin_token';
     let token = sessionStorage.getItem(tokenKey) || '';
+    let logoDataUrl = null;
 
     const loginCard = document.getElementById('login-card');
     const dashboard = document.getElementById('dashboard');
     const logoutBtn = document.getElementById('logout');
+
+    function applyBranding(branding) {
+      if (!branding) return;
+      const name = branding.appName || 'RAK TAK CASH';
+      const logo = branding.logoUrl || '/static/logo_default.jpg';
+      const bust = logo + (logo.includes('?') ? '&' : '?') + 't=' + Date.now();
+      document.title = name + ' Admin';
+      document.getElementById('header-title').textContent = name + ' Admin';
+      document.getElementById('header-logo').src = bust;
+      document.getElementById('brand-preview').src = bust;
+      document.getElementById('brand-name').value = name;
+    }
 
     function esc(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -195,11 +228,15 @@
     }
 
     async function refresh() {
-      const [overview, users, invoices] = await Promise.all([
+      const [overview, users, invoices, brandingRes] = await Promise.all([
         api('/admin/api/overview'),
         api('/admin/api/users'),
         api('/admin/api/invoices'),
+        api('/admin/api/branding'),
       ]);
+      applyBranding(brandingRes.branding);
+      logoDataUrl = null;
+      document.getElementById('brand-logo').value = '';
       const o = overview.overview;
       document.getElementById('kpis').innerHTML = [
         ['Comptes', o.users],
@@ -264,6 +301,34 @@
     };
 
     logoutBtn.onclick = logout;
+
+    document.getElementById('brand-logo').onchange = (event) => {
+      const file = event.target.files?.[0];
+      logoDataUrl = null;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        logoDataUrl = reader.result;
+        document.getElementById('brand-preview').src = logoDataUrl;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    document.getElementById('brand-save').onclick = async () => {
+      const error = document.getElementById('brand-error');
+      error.textContent = '';
+      try {
+        const body = { appName: document.getElementById('brand-name').value.trim() };
+        if (logoDataUrl) body.logoDataUrl = logoDataUrl;
+        const data = await api('/admin/api/branding', { method: 'POST', body: JSON.stringify(body) });
+        applyBranding(data.branding);
+        logoDataUrl = null;
+        document.getElementById('brand-logo').value = '';
+        alert('Branding enregistré. L’app mobile le récupère au prochain lancement / refresh.');
+      } catch (err) {
+        error.textContent = err.message;
+      }
+    };
 
     document.body.addEventListener('click', async (event) => {
       const statusBtn = event.target.closest('[data-status]');

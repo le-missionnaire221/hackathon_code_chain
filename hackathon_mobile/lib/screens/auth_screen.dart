@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
+import '../core/services/branding_service.dart';
 import '../core/services/session.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -89,13 +90,30 @@ class _AuthScreenState extends State<AuthScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
           children: [
-            const Text(
-              'PayChain',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.primary),
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.asset(
+                  BrandingService.localLogoAsset,
+                  height: 88,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Text(
+                    BrandingService.appName,
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              BrandingService.appName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.primary),
             ),
             const SizedBox(height: 6),
             Text(
-              _isRegister ? 'Créez votre portefeuille Lightning' : 'Connectez-vous à votre portefeuille',
+              _isRegister ? 'Créez votre portefeuille' : 'Connectez-vous à votre compte',
+              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 28),

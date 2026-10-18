@@ -152,7 +152,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
         }
       } else {
         _errorMessage = res?['error']?.toString() ??
-            'QR introuvable. Scannez une facture ou une adresse Recevoir PayChain.';
+            'QR introuvable. Scannez une facture ou une adresse Recevoir.';
       }
     });
   }
@@ -324,7 +324,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
             TextField(
               controller: _inputController,
               decoration: InputDecoration(
-                hintText: 'Lien /pay/…, réf. ou adresse …@paychain.app',
+                hintText: 'Lien /pay/…, réf. ou adresse …@raktak.cash',
                 hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
                 prefixIcon: const Icon(Icons.link_rounded, color: AppColors.textSecondary, size: 20),
                 suffixIcon: IconButton(
@@ -395,7 +395,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
                     ),
                   Text(
-                    _invoiceData?['description']?.toString() ?? (isAddress ? 'Envoi PayChain' : 'Article PayChain'),
+                    _invoiceData?['description']?.toString() ?? (isAddress ? 'Envoi RAK TAK CASH' : 'Article'),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w800,

@@ -19,7 +19,7 @@ class CodeChainFintechApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PayChain Dakar - Lightning POS',
+      title: 'RAK TAK CASH',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       scrollBehavior: const _AppScrollBehavior(),

@@ -23,8 +23,8 @@ class BlinkAddressSheet extends StatefulWidget {
 
   static String get receiveAddress {
     final phone = (Session.phone ?? '').replaceAll(RegExp(r'\D'), '');
-    if (phone.isEmpty) return 'compte@paychain.app';
-    return '$phone@paychain.app';
+    if (phone.isEmpty) return 'compte@raktak.cash';
+    return '$phone@raktak.cash';
   }
 
   static Future<void> show(
@@ -98,7 +98,7 @@ class _BlinkAddressSheetState extends State<BlinkAddressSheet> {
     Clipboard.setData(ClipboardData(text: address));
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Adresse PayChain copiée !'), backgroundColor: AppColors.primary),
+      const SnackBar(content: Text('Adresse RAK TAK CASH copiée !'), backgroundColor: AppColors.primary),
     );
   }
 
@@ -192,7 +192,7 @@ class _BlinkAddressSheetState extends State<BlinkAddressSheet> {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Montrez ce QR. Dès qu’un autre compte PayChain paie, cet écran se valide tout seul.',
+          'Montrez ce QR. Dès qu’un autre compte paie, cet écran se valide tout seul.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
         ),

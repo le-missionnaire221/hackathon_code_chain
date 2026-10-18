@@ -105,7 +105,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     if (index == _currentIndex) return;
     HapticFeedback.selectionClick();
     setState(() => _currentIndex = index);
-    if (index == 0 || index == 2) _fetchRealWalletData();
+    if (index == 0 || index == 2 || index == 3) _fetchRealWalletData();
   }
 
   @override
@@ -162,6 +162,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
             accountName: Session.displayName,
             accountPhone: Session.phone ?? '',
             onLogout: widget.onLogout,
+            balanceSats: _balanceSats,
+            balanceFcfa: _balanceFcfa,
+            escrowSats: _escrowSats,
+            paidCount: _transactions.where((tx) => tx.isConfirmed && !tx.isCredit).length,
+            receivedCount: _transactions.where((tx) => tx.isConfirmed && tx.isCredit).length,
+            totalTransactions: _transactions.length,
+            backendUrl: backendUrl,
+            onRefresh: _fetchRealWalletData,
           ),
         ],
       ),
@@ -190,9 +198,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
               label: 'Reçus',
             ),
             NavigationDestination(
-              icon: Icon(Icons.tune_outlined),
-              selectedIcon: Icon(Icons.tune_rounded),
-              label: 'Réglages',
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Profil',
             ),
           ],
         ),

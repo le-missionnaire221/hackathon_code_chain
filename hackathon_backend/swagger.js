@@ -3,7 +3,7 @@ import swaggerUi from 'swagger-ui-express';
 export const openApiSpec = {
   openapi: '3.0.3',
   info: {
-    title: 'PayChain Dakar API',
+    title: 'RAK TAK CASH API',
     version: '1.0.0',
     description: 'Comptes, portefeuilles Lightning et séquestre bilatéral. Hackathon Code & Chain Dakar 2026.',
   },
@@ -231,5 +231,5 @@ export const openApiSpec = {
 
 export function mountDocs(app) {
   app.get('/openapi.json', (req, res) => res.json(openApiSpec));
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, { customSiteTitle: 'PayChain API' }));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, { customSiteTitle: 'RAK TAK CASH API' }));
 }

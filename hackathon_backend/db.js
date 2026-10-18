@@ -151,17 +151,30 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS invoices_user_idx ON invoices(user_id);
     CREATE INDEX IF NOT EXISTS invoices_status_idx ON invoices(status);
     CREATE INDEX IF NOT EXISTS ledger_user_idx ON ledger(user_id);
+
+    CREATE TABLE IF NOT EXISTS app_branding (
+      id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      app_name TEXT NOT NULL DEFAULT 'RAK TAK CASH',
+      logo_file TEXT NOT NULL DEFAULT 'logo_default.jpg',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 
+  await pool.query(
+    `INSERT INTO app_branding (id, app_name, logo_file)
+     VALUES (1, 'RAK TAK CASH', 'logo_default.jpg')
+     ON CONFLICT (id) DO NOTHING`
+  );
+
   const phone = normalizePhone(process.env.ADMIN_PHONE || '221770000001');
-  const password = process.env.ADMIN_PASSWORD || 'PayChainAdmin2026';
+  const password = process.env.ADMIN_PASSWORD || 'RakTakCashAdmin2026';
   const existing = await pool.query('SELECT id FROM users WHERE phone = $1', [phone]);
   if (existing.rowCount === 0) {
     const hash = await bcrypt.hash(password, 10);
     const user = await pool.query(
       `INSERT INTO users (phone, password_hash, full_name, role)
        VALUES ($1, $2, $3, 'admin') RETURNING id`,
-      [phone, hash, 'Administrateur PayChain']
+      [phone, hash, 'Administrateur RAK TAK CASH']
     );
     await pool.query('INSERT INTO wallets (user_id) VALUES ($1)', [user.rows[0].id]);
     console.log(`👑 Compte admin prêt : +${phone}`);
@@ -274,7 +287,9 @@ export function extractScanCode(raw) {
   return text.trim();
 }
 
-/** Adresse de réception PayChain : 2217…@paychain.app ou paychain://receive/{userId} */
+const RECEIVE_DOMAINS = new Set(['raktak.cash', 'paychain.app', 'paychain.dakar']);
+
+/** Adresse de réception : 2217…@raktak.cash (ou anciens domaines) / paychain://receive/{userId} */
 export function parsePaychainReceive(raw) {
   let text = String(raw || '').trim();
   if (!text) return null;
@@ -286,13 +301,37 @@ export function parsePaychainReceive(raw) {
   const match = text.match(/^([^@\s]+)@([^@\s]+)$/i);
   if (!match) return null;
   const domain = match[2].toLowerCase();
-  if (domain !== 'paychain.app' && domain !== 'paychain.dakar') return null;
+  if (!RECEIVE_DOMAINS.has(domain)) return null;
   const phone = normalizePhone(match[1]);
   return phone ? { kind: 'phone', value: phone } : null;
 }
 
 export function paychainAddressForPhone(phone) {
-  return `${normalizePhone(phone)}@paychain.app`;
+  return `${normalizePhone(phone)}@raktak.cash`;
+}
+
+export async function getAppBranding() {
+  const { rows } = await pool.query('SELECT app_name, logo_file, updated_at FROM app_branding WHERE id = 1');
+  const row = rows[0] || { app_name: 'RAK TAK CASH', logo_file: 'logo_default.jpg' };
+  return {
+    appName: row.app_name || 'RAK TAK CASH',
+    logoFile: row.logo_file || 'logo_default.jpg',
+    logoUrl: `/static/${row.logo_file || 'logo_default.jpg'}`,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+export async function updateAppBranding({ appName, logoFile } = {}) {
+  const current = await getAppBranding();
+  const nextName = String(appName || current.appName).trim().slice(0, 80) || current.appName;
+  const nextLogo = logoFile ? String(logoFile).trim() : current.logoFile;
+  await pool.query(
+    `UPDATE app_branding
+     SET app_name = $1, logo_file = $2, updated_at = now()
+     WHERE id = 1`,
+    [nextName, nextLogo]
+  );
+  return getAppBranding();
 }
 
 export async function findUserByReceiveTarget(raw) {
@@ -351,7 +390,7 @@ export async function transferToPaychainUser(fromUserId, toUserId, amountSats, n
     );
 
     const reference = `TRF_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-    const recipientName = recipient.rows[0].full_name || 'Compte PayChain';
+    const recipientName = recipient.rows[0].full_name || 'Compte RAK TAK CASH';
     const label = note || `Envoi à ${recipientName}`;
 
     await client.query(
@@ -403,7 +442,7 @@ export async function findInvoiceByScan(raw) {
   );
   if (!rows[0]) return null;
   const invoice = toInvoice(rows[0]);
-  invoice.merchantName = rows[0].merchant_name || 'Marchand PayChain';
+  invoice.merchantName = rows[0].merchant_name || 'Marchand RAK TAK CASH';
   invoice.amountFcfa = Math.round(invoice.amount * SAT_TO_FCFA);
   return invoice;
 }
@@ -419,7 +458,7 @@ export async function payFromBuyerWallet(reference, buyerId) {
       return { status: 404, error: 'Facture introuvable' };
     }
     const merchant = await client.query('SELECT full_name FROM users WHERE id = $1', [row.user_id]);
-    const merchantName = merchant.rows[0]?.full_name || 'Marchand PayChain';
+    const merchantName = merchant.rows[0]?.full_name || 'Marchand RAK TAK CASH';
     if (row.status === 'paid') {
       await client.query('ROLLBACK');
       return {

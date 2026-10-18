@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/api_service.dart';
+import '../core/services/branding_service.dart';
 import '../core/services/deep_link_service.dart';
 import '../core/services/session.dart';
 import '../widgets/buyer_payment_sheet.dart';
@@ -31,6 +32,8 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _bootstrap() async {
     await DeepLinkService.instance.start();
     _linkSub = DeepLinkService.instance.payCodes.listen(_onPayCode);
+    await BrandingService.restore();
+    await BrandingService.loadFromBackend(AppConstants.productionBackendUrl);
     final ok = await Session.restore();
     if (!mounted) return;
     setState(() {

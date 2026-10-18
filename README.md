@@ -1,8 +1,8 @@
-﻿# PayChain Dakar
+﻿# RAK TAK CASH
 
 Paiements Lightning pour commerçants en Afrique de l’Ouest — **Code & Chain Dakar 2026**.
 
-Application Flutter + API Node.js / Express + PostgreSQL, branchée sur **Bitnob** (sandbox Lightning). Un marchand encaisse sur place avec un QR, ou à distance via un lien partageable ; l’argent peut rester bloqué jusqu’à la livraison.
+Application Flutter + API Node.js / Express + PostgreSQL, branchée sur **Bitnob** (sandbox Lightning). Un marchand encaisse sur place avec un QR, ou à distance via un lien partageable ; l’argent peut rester bloqué jusqu’à la livraison. Nom et logo configurables depuis le dashboard admin.
 
 **Développeur :** Idrissa Coulibaly ([@le-missionnaire221](https://github.com/le-missionnaire221))  
 **API en ligne :** [https://hackathon-code-chain.onrender.com](https://hackathon-code-chain.onrender.com)

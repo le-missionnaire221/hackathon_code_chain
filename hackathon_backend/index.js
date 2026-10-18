@@ -1,6 +1,8 @@
 import './env.js';
 import express from 'express';
 import crypto from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
 import {
@@ -20,6 +22,7 @@ import {
   parsePaychainReceive,
   paychainAddressForPhone,
   transferToPaychainUser,
+  getAppBranding,
 } from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
@@ -28,11 +31,13 @@ import { mountAdmin } from './admin.js';
 // Forcer IPv4 pour la connectivité réseau sous Windows
 dns.setDefaultResultOrder('ipv4first');
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Parser JSON et conservation du corps brut pour vérification HMAC
+// Parser JSON (limite élevée pour upload logo admin en base64) + corps brut HMAC
 app.use(express.json({
+  limit: '4mb',
   type: (req) => (req.headers['content-type'] || '').includes('json'),
   verify: (req, res, buf) => { req.rawBody = buf.toString(); }
 }));
@@ -49,6 +54,21 @@ app.use((req, res, next) => {
 mountAuth(app);
 mountDocs(app);
 mountAdmin(app);
+
+app.use('/static', express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',
+  fallthrough: true,
+}));
+
+// Branding public (nom + logo) — utilisé par l’app mobile et les pages /pay
+app.get('/branding', async (req, res) => {
+  try {
+    const branding = await getAppBranding();
+    res.json({ success: true, ...branding });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Branding indisponible' });
+  }
+});
 
 // Racine → documentation Swagger
 app.get('/', (req, res) => {
@@ -356,6 +376,8 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
 // === PAGE WEB DE PAIEMENT SÉCURISÉ (ADAPTATIVE MOBILE & PC) ===
 app.get('/pay/:reference', async (req, res) => {
   const { reference } = req.params;
+  const branding = await getAppBranding().catch(() => ({ appName: 'RAK TAK CASH', logoUrl: '/static/logo_default.jpg' }));
+  const brandName = branding.appName || 'RAK TAK CASH';
   let invoice = await getInvoice(reference);
   if (invoice) {
     invoice = await markExpiredIfNeeded(invoice);
@@ -374,7 +396,7 @@ app.get('/pay/:reference', async (req, res) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Facture Introuvable - PayChain Dakar</title>
+        <title>Facture Introuvable - ${brandName}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0e14; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; text-align: center; }
           .card { background: #161b26; border: 1px solid #232b3e; border-radius: 20px; padding: 32px 24px; max-width: 420px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
@@ -399,7 +421,7 @@ app.get('/pay/:reference', async (req, res) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Paiement expiré - PayChain Dakar</title>
+        <title>Paiement expiré - ${brandName}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0e14; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; text-align: center; }
           .card { background: #161b26; border: 1px solid #232b3e; border-radius: 20px; padding: 32px 24px; max-width: 420px; width: 100%; }
@@ -428,7 +450,7 @@ app.get('/pay/:reference', async (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-      <title>Paiement Sécurisé - PayChain Dakar</title>
+      <title>Paiement sécurisé - ${brandName}</title>
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
@@ -812,7 +834,7 @@ app.get('/pay/:reference', async (req, res) => {
         <!-- HEADER -->
         <div class="header">
           <div class="brand">
-            PAYCHAIN DAKAR
+            ${brandName}
           </div>
           <!-- Sélecteur d'appareil (permet de simuler Mobile ou PC en direct) -->
           <div class="mode-toggle" title="Basculer entre l'affichage Smartphone et PC">
