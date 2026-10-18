@@ -57,17 +57,27 @@ class TransactionItem {
     );
   }
 
-  bool get isConfirmed =>
-      status.contains('Confirmé') ||
-      status.toLowerCase().contains('paid') ||
-      status.toLowerCase().contains('payé') ||
-      status.toLowerCase().contains('paye') ||
-      status.contains('Libéré');
+  bool get isConfirmed {
+    final s = status.toLowerCase();
+    if (isLockedInEscrow) return false;
+    return s.contains('confirm') ||
+        s.contains('paid') ||
+        s.contains('payé') ||
+        s.contains('paye') ||
+        s.contains('libéré') ||
+        s.contains('libere') ||
+        s.contains('livré') ||
+        s.contains('livre') ||
+        s.contains('released');
+  }
 
-  bool get isLockedInEscrow =>
-      isEscrow &&
-      (escrowStatus == 'locked' ||
-          status.toLowerCase().contains('gardé') ||
-          status.toLowerCase().contains('sequest') ||
-          status.contains('Séquestré'));
+  bool get isLockedInEscrow {
+    final s = status.toLowerCase();
+    return isEscrow &&
+        (escrowStatus == 'locked' ||
+            s.contains('argent gardé') ||
+            (s.contains('gardé') && !s.contains('livré')) ||
+            s.contains('sequest') ||
+            s.contains('séquestré'));
+  }
 }
