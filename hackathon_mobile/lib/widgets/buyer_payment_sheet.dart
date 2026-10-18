@@ -203,7 +203,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isEscrow ? 'Espace Acheteur • Séquestre 🛡️' : 'Régler une Commande ⚡',
+                      isEscrow ? 'Espace Acheteur • Séquestre' : 'Régler une commande',
                       style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
@@ -279,7 +279,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          isEscrow ? '🛡️ Séquestre Anti-Arnaque' : '⚡ Paiement Direct',
+                          isEscrow ? 'Séquestre Anti-Arnaque' : 'Paiement direct',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -418,7 +418,7 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
                 ),
                 icon: _isPaying
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.bolt_rounded, size: 20),
+                    : const Icon(Icons.payments_rounded, size: 20),
                 label: Text(
                   _isPaying
                       ? 'Règlement en cours…'

@@ -48,7 +48,7 @@ class TransactionItem {
       amountFcfa: (json['amountFcfa'] as num?)?.toDouble() ?? 0.0,
       isCredit: json['isCredit'] ?? true,
       date: parsedDate,
-      status: json['status']?.toString() ?? 'Confirmé ⚡',
+      status: json['status']?.toString() ?? 'Confirmé',
       preimage: json['preimage']?.toString(),
       request: json['request']?.toString(),
       isEscrow: json['isEscrow'] == true,

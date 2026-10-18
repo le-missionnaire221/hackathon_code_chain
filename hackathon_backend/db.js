@@ -560,7 +560,7 @@ export async function buildWalletPayload(userId) {
     amountFcfa: Math.round(Math.abs(Number(entry.amount_sats)) * SAT_TO_FCFA),
     isCredit: Number(entry.amount_sats) >= 0,
     date: entry.created_at,
-    status: 'Confirmé ⚡',
+    status: 'Confirmé',
     isEscrow: false,
     escrowStatus: 'none',
     releaseCode: null,

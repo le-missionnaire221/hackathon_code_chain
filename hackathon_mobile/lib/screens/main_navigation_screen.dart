@@ -117,7 +117,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               _fetchRealWalletData();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('⚡ Commande enregistrée : +${Formatters.sats(sats)} ($desc)'),
+                  content: Text('Commande enregistrée : +${Formatters.sats(sats)} ($desc)'),
                   backgroundColor: AppColors.primary,
                 ),
               );

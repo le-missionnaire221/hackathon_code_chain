@@ -33,7 +33,7 @@ class BlinkAddressSheet extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: const BoxDecoration(gradient: AppColors.walletGradient, shape: BoxShape.circle),
-            child: const Icon(Icons.bolt_rounded, color: AppColors.lightningGold, size: 30),
+            child: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 30),
           ),
         ),
         const SizedBox(height: 12),
@@ -114,7 +114,7 @@ class BlinkAddressSheet extends StatelessWidget {
           runSpacing: 8,
           children: [
             _Feature(icon: Icons.money_off_rounded, label: '0 frais'),
-            _Feature(icon: Icons.flash_on_rounded, label: 'Instantané'),
+            _Feature(icon: Icons.speed_rounded, label: 'Instantané'),
             _Feature(icon: Icons.public_rounded, label: 'Mondial'),
           ],
         ),

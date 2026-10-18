@@ -104,7 +104,7 @@ app.post('/invoice', requireAuth, async (req, res) => {
       bolt11
     });
 
-    console.log(`⚡ Invoice créée : ${reference} pour +${req.user.phone} (Séquestre: ${Boolean(isEscrow)})`);
+    console.log(`Invoice créée : ${reference} pour +${req.user.phone} (Séquestre: ${Boolean(isEscrow)})`);
     res.json({
       ...invoiceResponse,
       reference,
@@ -205,7 +205,7 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
     if (bitnobStatus === 'paid' && preimage) {
       const invoice = await settleInvoice(existing.reference, { preimage });
       const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
-      console.log(`⚡ [BITNOB PAY] ${existing.reference} réglée sur Lightning (${fcfa} FCFA)`);
+      console.log(`[BITNOB PAY] ${existing.reference} réglée sur Lightning (${fcfa} FCFA)`);
       return res.json({
         success: true,
         reference: invoice.reference,
@@ -227,7 +227,7 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
     }
     const invoice = result.invoice;
     const fcfa = Math.round(invoice.amount * SAT_TO_FCFA);
-    console.log(`⚡ [PAIEMENT COMPTE] ${req.user.phone} → ${invoice.reference} (${fcfa} FCFA)`);
+    console.log(`[PAIEMENT COMPTE] ${req.user.phone} → ${invoice.reference} (${fcfa} FCFA)`);
     return res.json({
       success: true,
       reference: invoice.reference,
@@ -683,7 +683,7 @@ app.get('/pay/:reference', async (req, res) => {
         <!-- HEADER -->
         <div class="header">
           <div class="brand">
-            <span>⚡</span> PAYCHAIN DAKAR
+            PAYCHAIN DAKAR
           </div>
           <!-- Sélecteur d'appareil (permet de simuler Mobile ou PC en direct) -->
           <div class="mode-toggle" title="Basculer entre l'affichage Smartphone et PC">

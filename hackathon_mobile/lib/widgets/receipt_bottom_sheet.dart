@@ -125,7 +125,11 @@ class _ReceiptBottomSheetState extends State<ReceiptBottomSheet> {
         ),
         const SizedBox(height: 12),
         Text(
-          isLocked ? 'Paiement bloqué' : (isPending ? 'En attente de paiement' : 'Reçu'),
+          isLocked
+              ? 'Paiement bloqué'
+              : (isPending
+                  ? 'En attente de paiement'
+                  : (transaction.isCredit ? 'Reçu' : 'Paiement envoyé')),
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
         ),
@@ -135,8 +139,12 @@ class _ReceiptBottomSheetState extends State<ReceiptBottomSheet> {
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            '+${Formatters.sats(transaction.amountSats)}',
-            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: AppColors.primary),
+            '${transaction.isCredit ? '+' : '−'}${Formatters.sats(transaction.amountSats)}',
+            style: TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+              color: transaction.isCredit ? AppColors.success : AppColors.error,
+            ),
           ),
         ),
         Text(

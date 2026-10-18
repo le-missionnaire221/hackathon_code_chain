@@ -179,7 +179,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 const Divider(),
                 const InfoRow(
                   label: 'Moteur API Bitnob',
-                  value: 'Sandbox Testnet ⚡',
+                  value: 'Sandbox Testnet',
                 ),
                 const Divider(),
                 const InfoRow(
@@ -225,7 +225,7 @@ class _SettingsTabState extends State<SettingsTab> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.bolt_rounded, size: 18, color: AppColors.primary),
+                    Icon(Icons.cloud_rounded, size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text(
                       'BITNOB SANDBOX',

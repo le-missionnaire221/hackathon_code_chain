@@ -9,7 +9,7 @@ import '../widgets/common/status_pill.dart';
 import '../widgets/receipt_bottom_sheet.dart';
 import '../widgets/transaction_card.dart';
 
-class WalletTab extends StatelessWidget {
+class WalletTab extends StatefulWidget {
   final int balanceSats;
   final double balanceFcfa;
   final int escrowSats;
@@ -51,6 +51,13 @@ class WalletTab extends StatelessWidget {
     required this.onNavigateToHistory,
   });
 
+  @override
+  State<WalletTab> createState() => _WalletTabState();
+}
+
+class _WalletTabState extends State<WalletTab> {
+  int _filterIndex = 0; // 0 = Tout, 1 = Confirmés, 2 = En attente / Autres
+
   static String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
     if (parts.isEmpty) return 'PC';
@@ -65,12 +72,21 @@ class WalletTab extends StatelessWidget {
     letterSpacing: -0.8,
   );
 
+  List<TransactionItem> get _filteredTransactions {
+    final all = widget.transactions;
+    if (_filterIndex == 1) return all.where((tx) => tx.isConfirmed).toList();
+    if (_filterIndex == 2) return all.where((tx) => !tx.isConfirmed).toList();
+    return all;
+  }
+
+  int get _confirmedCount => widget.transactions.where((tx) => tx.isConfirmed).length;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
-        onRefresh: onRefresh,
+        onRefresh: widget.onRefresh,
         color: AppColors.primary,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -79,15 +95,15 @@ class WalletTab extends StatelessWidget {
             _buildHeader(context),
             const SizedBox(height: 20),
             _buildBalanceCard(context),
-            if (escrowSats > 0) ...[
+            if (widget.escrowSats > 0) ...[
               const SizedBox(height: 14),
               _buildEscrowBanner(),
             ],
-            const SizedBox(height: 16),
-            _buildStatsRow(),
-            const SizedBox(height: 26),
+            const SizedBox(height: 20),
             _buildSectionHeader(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            _buildFilters(),
+            const SizedBox(height: 12),
             ..._buildTransactions(context),
           ],
         ),
@@ -111,7 +127,7 @@ class WalletTab extends StatelessWidget {
             ],
           ),
           child: Text(
-            _initials(accountName),
+            _initials(widget.accountName),
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
           ),
         ),
@@ -121,14 +137,14 @@ class WalletTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Bonjour 👋',
+                'Bonjour',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 2),
               Text(
-                accountName,
+                widget.accountName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
@@ -138,8 +154,8 @@ class WalletTab extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         StatusPill(
-          label: isBackendOnline ? 'Bitnob actif' : 'Hors ligne',
-          tone: isBackendOnline ? PillTone.success : PillTone.error,
+          label: widget.isBackendOnline ? 'En ligne' : 'Hors ligne',
+          tone: widget.isBackendOnline ? PillTone.success : PillTone.error,
           showDot: true,
         ),
       ],
@@ -156,149 +172,140 @@ class WalletTab extends StatelessWidget {
           BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 30, offset: const Offset(0, 14)),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Positioned(top: -70, right: -50, child: _glow(200, 0.10)),
-            Positioned(bottom: -80, left: -40, child: _glow(170, 0.07)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.bolt_rounded, color: AppColors.lightningGold, size: 18),
-                      const SizedBox(width: 6),
-                      const Expanded(
-                        child: Text(
-                          'SOLDE DISPONIBLE • BITNOB TESTNET',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: onToggleBalanceVisibility,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Icon(
-                            isBalanceVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: Colors.white70,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ],
+            Row(
+              children: [
+                const Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 18),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'SOLDE DISPONIBLE',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  // Montant principal en FCFA : FittedBox = jamais d'overflow
-                  SizedBox(
-                    height: 50,
-                    width: double.infinity,
-                    child: isLoading && balanceSats == 0
-                        ? const Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            ),
-                          )
-                        : FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: isBalanceVisible
-                                ? TweenAnimationBuilder<double>(
-                                    tween: Tween(begin: 0, end: balanceFcfa),
-                                    duration: const Duration(milliseconds: 900),
-                                    curve: Curves.easeOutCubic,
-                                    builder: (context, value, child) =>
-                                        Text(Formatters.fcfa(value), style: _balanceStyle),
-                                  )
-                                : const Text('••••••\u00A0FCFA', style: _balanceStyle),
-                          ),
+                ),
+                InkWell(
+                  onTap: widget.onToggleBalanceVisibility,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      widget.isBalanceVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  // Double montant : SATS (épargne) + taux BTC
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                        ),
-                        child: Text(
-                          isBalanceVisible ? '⚡ ${Formatters.sats(balanceSats)}' : '⚡ ••••\u00A0SATS',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.lightningGold,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12.5,
-                          ),
-                        ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 50,
+              width: double.infinity,
+              child: widget.isLoading && widget.balanceSats == 0
+                  ? const Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       ),
-                      Text(
-                        '1 BTC ≈ ${Formatters.compactFcfa(btcPriceFcfa)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white60, fontSize: 11.5),
-                      ),
-                    ],
+                    )
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: widget.isBalanceVisible
+                          ? TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0, end: widget.balanceFcfa),
+                              duration: const Duration(milliseconds: 900),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, value, child) =>
+                                  Text(Formatters.fcfa(value), style: _balanceStyle),
+                            )
+                          : const Text('••••••\u00A0FCFA', style: _balanceStyle),
+                    ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
-                  const SizedBox(height: 22),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.point_of_sale_rounded,
-                          label: 'Encaisser',
-                          highlight: true,
-                          onTap: onNavigateToPos,
-                        ),
-                      ),
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.qr_code_scanner_rounded,
-                          label: 'Scanner',
-                          onTap: () => BuyerPaymentSheet.show(
-                            context,
-                            backendUrl: backendUrl,
-                            onPaymentSuccess: onRefresh,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.qr_code_2_rounded,
-                          label: 'Recevoir',
-                          onTap: () => BlinkAddressSheet.show(context),
-                        ),
-                      ),
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.receipt_long_rounded,
-                          label: 'Reçus',
-                          onTap: onNavigateToHistory,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    widget.isBalanceVisible
+                        ? Formatters.sats(widget.balanceSats)
+                        : '•••• SATS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                    ),
                   ),
-                ],
-              ),
+                ),
+                Text(
+                  '1 BTC ≈ ${Formatters.compactFcfa(widget.btcPriceFcfa)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white60, fontSize: 11.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.point_of_sale_rounded,
+                    label: 'Encaisser',
+                    highlight: true,
+                    onTap: widget.onNavigateToPos,
+                  ),
+                ),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.qr_code_scanner_rounded,
+                    label: 'Scanner',
+                    onTap: () => BuyerPaymentSheet.show(
+                      context,
+                      backendUrl: widget.backendUrl,
+                      onPaymentSuccess: widget.onRefresh,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.qr_code_2_rounded,
+                    label: 'Recevoir',
+                    onTap: () => BlinkAddressSheet.show(context),
+                  ),
+                ),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.receipt_long_rounded,
+                    label: 'Reçus',
+                    onTap: widget.onNavigateToHistory,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -337,12 +344,12 @@ class WalletTab extends StatelessWidget {
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.amberDark, letterSpacing: 0.5),
                     ),
                     const SizedBox(width: 6),
-                    StatusPill(label: '$escrowInvoicesCount commande(s)', tone: PillTone.warning, dense: true),
+                    StatusPill(label: '${widget.escrowInvoicesCount} commande(s)', tone: PillTone.warning, dense: true),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${Formatters.fcfa(escrowFcfa)} (${Formatters.sats(escrowSats)}) garantis, libérables à la livraison.',
+                  '${Formatters.fcfa(widget.escrowFcfa)} (${Formatters.sats(widget.escrowSats)}) gardés jusqu’à la livraison.',
                   style: const TextStyle(fontSize: 12, color: Color(0xFF78350F), fontWeight: FontWeight.w600),
                 ),
               ],
@@ -353,74 +360,66 @@ class WalletTab extends StatelessWidget {
     );
   }
 
-  Widget _glow(double size, double opacity) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: opacity),
-      ),
-    );
-  }
-
-  // ───────────────────────── Statistiques ─────────────────────────
-  Widget _buildStatsRow() {
-    final ratio = totalInvoicesCount == 0 ? 0.0 : paidInvoicesCount / totalInvoicesCount;
-
+  Widget _buildFilters() {
+    final total = widget.transactions.length;
+    final confirmed = _confirmedCount;
+    final others = total - confirmed;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.verified_rounded,
-            iconColor: AppColors.success,
-            title: 'Factures réglées',
-            value: '$paidInvoicesCount / $totalInvoicesCount',
-            footer: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: ratio,
-                minHeight: 6,
-                backgroundColor: AppColors.surfaceMuted,
-                color: AppColors.success,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.savings_rounded,
-            iconColor: AppColors.amber,
-            title: 'Épargne en SATS',
-            value: isBalanceVisible ? Formatters.thousands(balanceSats) : '••••',
-            footer: const Text(
-              'Protégée de l\'inflation',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-            ),
-          ),
-        ),
+        _filterChip(0, 'Tout ($total)'),
+        const SizedBox(width: 8),
+        _filterChip(1, 'Confirmés ($confirmed)'),
+        const SizedBox(width: 8),
+        _filterChip(2, 'Autres ($others)'),
       ],
     );
   }
 
-  // ───────────────────────── Transactions ─────────────────────────
+  Widget _filterChip(int index, String label) {
+    final selected = _filterIndex == index;
+    return Expanded(
+      child: Material(
+        color: selected ? AppColors.primary : AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => setState(() => _filterIndex = index),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: selected ? AppColors.primary : AppColors.border),
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader() {
     return Row(
       children: [
         const Expanded(
           child: Text(
-            'Dernières factures',
+            'Transactions',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
           ),
         ),
         TextButton(
-          onPressed: onNavigateToHistory,
+          onPressed: widget.onNavigateToHistory,
           child: const Text('Tout voir'),
         ),
       ],
@@ -428,25 +427,35 @@ class WalletTab extends StatelessWidget {
   }
 
   List<Widget> _buildTransactions(BuildContext context) {
-    if (transactions.isEmpty && isLoading) {
+    final filtered = _filteredTransactions;
+    if (widget.transactions.isEmpty && widget.isLoading) {
       return const [SkeletonCard(), SkeletonCard(), SkeletonCard()];
     }
-    if (transactions.isEmpty) {
+    if (widget.transactions.isEmpty) {
       return [
         EmptyState(
           icon: Icons.point_of_sale_rounded,
           title: 'Aucune facture pour le moment',
-          message: 'Créez votre premier encaissement Lightning en quelques secondes.',
+          message: 'Créez votre premier encaissement en quelques secondes.',
           actionLabel: 'Encaisser maintenant',
-          onAction: onNavigateToPos,
+          onAction: widget.onNavigateToPos,
         ),
       ];
     }
-    return transactions
-        .take(4)
+    if (filtered.isEmpty) {
+      return [
+        const EmptyState(
+          icon: Icons.filter_list_rounded,
+          title: 'Aucun élément pour ce filtre',
+          message: 'Sélectionnez « Tout » pour voir toutes les transactions.',
+        ),
+      ];
+    }
+    return filtered
+        .take(6)
         .map((tx) => TransactionCard(
               transaction: tx,
-              onTap: () => ReceiptBottomSheet.show(context, tx, onUpdated: onRefresh),
+              onTap: () => ReceiptBottomSheet.show(context, tx, onUpdated: widget.onRefresh),
             ))
         .toList();
   }
@@ -494,74 +503,6 @@ class _QuickAction extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String value;
-  final Widget footer;
-
-  const _StatCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.value,
-    required this.footer,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 16, color: iconColor),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          footer,
-        ],
       ),
     );
   }

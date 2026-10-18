@@ -18,8 +18,17 @@ class TransactionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (statusLabel, tone) = StatusPill.fromTransactionStatus(transaction.status);
     final isConfirmed = tone == PillTone.success;
-    final iconBg = isConfirmed ? AppColors.successSoft : AppColors.surfaceMuted;
-    final iconColor = isConfirmed ? AppColors.success : AppColors.textMuted;
+    final isCredit = transaction.isCredit;
+    final amountColor = !isConfirmed
+        ? AppColors.textSecondary
+        : (isCredit ? AppColors.success : AppColors.error);
+    final iconBg = !isConfirmed
+        ? AppColors.surfaceMuted
+        : (isCredit ? AppColors.successSoft : AppColors.error.withValues(alpha: 0.12));
+    final iconColor = !isConfirmed
+        ? AppColors.textMuted
+        : (isCredit ? AppColors.success : AppColors.error);
+    final sign = isCredit ? '+' : '−';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -42,7 +51,9 @@ class TransactionCard extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(14)),
                   child: Icon(
-                    isConfirmed ? Icons.bolt_rounded : Icons.schedule_rounded,
+                    !isConfirmed
+                        ? Icons.schedule_rounded
+                        : (isCredit ? Icons.south_west_rounded : Icons.north_east_rounded),
                     color: iconColor,
                   ),
                 ),
@@ -88,11 +99,11 @@ class TransactionCard extends StatelessWidget {
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          '+${Formatters.thousands(transaction.amountSats)}',
+                          '$sign${Formatters.thousands(transaction.amountSats)}',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
-                            color: isConfirmed ? AppColors.primary : AppColors.textSecondary,
+                            color: amountColor,
                           ),
                         ),
                       ),

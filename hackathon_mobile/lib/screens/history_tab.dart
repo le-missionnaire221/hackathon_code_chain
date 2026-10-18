@@ -38,9 +38,15 @@ class _HistoryTabState extends State<HistoryTab> {
     return widget.transactions;
   }
 
-  int get _totalSatsConfirmed {
+  int get _receivedSatsConfirmed {
     return widget.transactions
-        .where((tx) => tx.isConfirmed)
+        .where((tx) => tx.isConfirmed && tx.isCredit)
+        .fold(0, (sum, tx) => sum + tx.amountSats);
+  }
+
+  int get _paidSatsConfirmed {
+    return widget.transactions
+        .where((tx) => tx.isConfirmed && !tx.isCredit)
         .fold(0, (sum, tx) => sum + tx.amountSats);
   }
 
@@ -48,6 +54,8 @@ class _HistoryTabState extends State<HistoryTab> {
   Widget build(BuildContext context) {
     final filtered = _filteredTransactions;
     final totalConfirmed = widget.transactions.where((tx) => tx.isConfirmed).length;
+    final receivedCount = widget.transactions.where((tx) => tx.isConfirmed && tx.isCredit).length;
+    final paidCount = widget.transactions.where((tx) => tx.isConfirmed && !tx.isCredit).length;
 
     return SafeArea(
       bottom: false,
@@ -112,24 +120,24 @@ class _HistoryTabState extends State<HistoryTab> {
                   ),
                 ],
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.receipt_long_rounded, color: AppColors.lightningGold, size: 22),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'TOTAL ENCAISSÉ CONFIRMÉ',
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.receipt_long_rounded, color: AppColors.lightningGold, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'BILAN CONFIRMÉ',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 10.5,
@@ -137,26 +145,68 @@ class _HistoryTabState extends State<HistoryTab> {
                             letterSpacing: 0.6,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '+${Formatters.sats(_totalSatsConfirmed)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      StatusPill(
+                        label: '$totalConfirmed confirmées',
+                        tone: PillTone.success,
+                        dense: true,
+                      ),
+                    ],
                   ),
-                  StatusPill(
-                    label: '$totalConfirmed payées',
-                    tone: PillTone.success,
-                    dense: true,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Reçu ($receivedCount)',
+                              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '+${Formatters.sats(_receivedSatsConfirmed)}',
+                                style: const TextStyle(
+                                  color: Color(0xFF86EFAC),
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(width: 1, height: 36, color: Colors.white24),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Payé ($paidCount)',
+                              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '−${Formatters.sats(_paidSatsConfirmed)}',
+                                style: const TextStyle(
+                                  color: Color(0xFFFCA5A5),
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -190,7 +240,7 @@ class _HistoryTabState extends State<HistoryTab> {
                 message: _filterIndex == 0
                     ? 'Générez des factures depuis le TPE ou WhatsApp pour voir l\'historique se remplir.'
                     : 'Sélectionnez "Tout" pour afficher l\'ensemble des transactions.',
-                actionLabel: _filterIndex == 0 ? 'Créer un paiement ⚡' : null,
+                actionLabel: _filterIndex == 0 ? 'Créer un paiement' : null,
                 onAction: _filterIndex == 0 ? widget.onNavigateToPos : null,
               )
             else
