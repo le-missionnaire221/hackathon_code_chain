@@ -72,24 +72,42 @@ app.get('/branding', async (req, res) => {
 });
 
 // Racine → page live (install APK + liens démo). Swagger reste UNIQUEMENT sur /docs
+const localApkPath = path.join(__dirname, 'public', 'downloads', 'app-release.apk');
+
+function resolveApkUrl() {
+  if (process.env.APK_DOWNLOAD_URL) return process.env.APK_DOWNLOAD_URL;
+  if (fs.existsSync(localApkPath)) return '/download/apk';
+  return '';
+}
+
 function sendLivePage(req, res) {
   const file = path.join(__dirname, 'public', 'live.html');
-  const localApk = path.join(__dirname, 'public', 'downloads', 'app-release.apk');
-  const apkUrl = process.env.APK_DOWNLOAD_URL
-    || (fs.existsSync(localApk) ? '/static/downloads/app-release.apk' : '');
   let html = fs.readFileSync(file, 'utf8');
-  if (apkUrl) {
-    html = html.replaceAll('__APK_URL__', apkUrl);
-  } else {
-    html = html.replace(
-      /<a class="btn btn-primary" id="apk-btn"[\s\S]*?<\/a>/,
-      `<a class="btn btn-primary" id="apk-btn" href="#install" style="opacity:.9">APK : configurez APK_DOWNLOAD_URL (Drive)</a>`
-    );
-  }
+  // Toujours pointer le bouton vers /download/apk (fichier local ou redirection APK_DOWNLOAD_URL)
+  html = html.replaceAll('__APK_URL__', resolveApkUrl() || '/download/apk');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.type('html').send(html);
 }
+
+app.get('/download/apk', (req, res) => {
+  const external = process.env.APK_DOWNLOAD_URL;
+  if (external && !external.startsWith('/')) {
+    return res.redirect(302, external);
+  }
+  if (!fs.existsSync(localApkPath)) {
+    return res.status(404).type('html').send(`
+      <h2>APK introuvable</h2>
+      <p>Le fichier n’est pas encore déployé. Réessaie dans 1–2 minutes ou contacte l’équipe.</p>
+      <p><a href="/">Retour</a></p>
+    `);
+  }
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="RAK-TAK-CASH.apk"');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  fs.createReadStream(localApkPath).pipe(res);
+});
+
 app.get('/', sendLivePage);
 app.get('/live', sendLivePage);
 app.get('/app', sendLivePage);

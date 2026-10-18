@@ -13,9 +13,9 @@ scratch/
 *.tmp
 *.log
 
-# APK (trop lourd pour git — héberger Drive / GitHub Release + APK_DOWNLOAD_URL)
+# APK build locaux (sauf l’APK public de la page live)
 **/*.apk
-hackathon_backend/public/downloads/*.apk
+!hackathon_backend/public/downloads/app-release.apk
 
 # Flutter / Dart
 **/build/
