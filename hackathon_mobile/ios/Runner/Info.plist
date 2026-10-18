@@ -26,6 +26,19 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>PayChain utilise la caméra pour scanner le QR code Lightning du marchand.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>sn.paychain.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>paychain</string>
+			</array>
+		</dict>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -26,17 +26,15 @@ class PosTab extends StatefulWidget {
 }
 
 class _PosTabState extends State<PosTab> {
-  static const int _maxDigits = 9;
   static const List<String> _fcfaPresets = ['500', '1000', '2500', '5000', '10000'];
   static const Duration _pollInterval = Duration(seconds: 2);
   static const Duration _pollTimeout = Duration(minutes: 15);
-  static const String _backspace = '⌫';
 
-  final TextEditingController _descController = TextEditingController(text: 'Sac Artisanal Cuir Ngor');
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
   final TextEditingController _otpInputController = TextEditingController();
 
   // Saisie
-  String _amountInput = '100';
   bool _inputInFcfa = true;       // Le TPE saisit en FCFA : 2000 = 2 000 francs
   bool _isDistanceMode = false;   // false = Comptoir (TPE), true = WhatsApp / Séquestre Distance
   bool _isLoading = false;
@@ -58,7 +56,7 @@ class _PosTabState extends State<PosTab> {
   Timer? _clockTimer;
   bool _pollInFlight = false;
 
-  int get _enteredValue => int.tryParse(_amountInput) ?? 0;
+  int get _enteredValue => int.tryParse(_amountController.text) ?? 0;
 
   int get _sats => _inputInFcfa ? (_enteredValue / AppConstants.satRateInFcfa).round() : _enteredValue;
 
@@ -69,6 +67,7 @@ class _PosTabState extends State<PosTab> {
   @override
   void dispose() {
     _stopTimers();
+    _amountController.dispose();
     _descController.dispose();
     _otpInputController.dispose();
     super.dispose();
@@ -82,36 +81,14 @@ class _PosTabState extends State<PosTab> {
   }
 
   // ───────────────────────── Logique de saisie ─────────────────────────
-  void _onKeyTap(String key) {
-    HapticFeedback.selectionClick();
-    setState(() {
-      if (key == _backspace) {
-        _amountInput = _amountInput.length <= 1 ? '0' : _amountInput.substring(0, _amountInput.length - 1);
-        return;
-      }
-      if (_amountInput == '0') {
-        if (key == '0' || key == '00') return;
-        _amountInput = key;
-        return;
-      }
-      final next = _amountInput + key;
-      if (next.length > _maxDigits) return;
-      _amountInput = next;
-    });
-  }
-
-  void _clearAmount() {
-    HapticFeedback.mediumImpact();
-    setState(() => _amountInput = '0');
-  }
-
   void _toggleUnit() {
     HapticFeedback.lightImpact();
     setState(() {
       final sats = _sats;
       final fcfa = _fcfa;
       _inputInFcfa = !_inputInFcfa;
-      _amountInput = (_inputInFcfa ? fcfa.round() : sats).toString();
+      final next = _inputInFcfa ? fcfa.round() : sats;
+      _amountController.text = next > 0 ? next.toString() : '';
     });
   }
 
@@ -230,7 +207,7 @@ class _PosTabState extends State<PosTab> {
         _escrowStatus = 'released';
       });
       widget.onPaymentReceived(_invoiceSats, ref, _preimage, _invoiceDescription);
-      _showSnackbar('🎉 Cadenas débloqué ! Fonds versés dans votre solde disponible.', AppColors.success);
+      _showSnackbar('Livraison validée. L\'argent est sur votre compte.', AppColors.success);
     } else {
       final err = res?['error'] ?? 'Code secret invalide';
       _showSnackbar('Erreur : $err', AppColors.error);
@@ -333,24 +310,24 @@ class _PosTabState extends State<PosTab> {
     final String subtitle;
     switch (_stage) {
       case _PosStage.input:
-        title = _isDistanceMode
-            ? 'Vente à distance sécurisée'
-            : 'Point de vente comptoir';
+        title = _isDistanceMode ? 'Vente avec livraison' : 'Encaisser sur place';
         subtitle = _isDistanceMode
-            ? 'Séquestre Anti-Arnaque pour WhatsApp & e-commerce'
-            : 'Votre téléphone devient un TPE Lightning sans frais';
+            ? 'Le client paie avant l\'envoi. Vous recevez l\'argent à la livraison.'
+            : 'Le client scanne le QR code et paie tout de suite.';
         break;
       case _PosStage.waiting:
         title = 'En attente du paiement';
-        subtitle = 'Le client scanne ou réserve la commande';
+        subtitle = 'Le client scanne le QR code pour payer';
         break;
       case _PosStage.paid:
         if (_isDistanceMode) {
-          title = _escrowStatus == 'released' ? 'Commande Livrée & Réglée 🔓' : 'Fonds sous Séquestre Garantis 🔒';
-          subtitle = 'Garantie de livraison bilatérale';
+          title = _escrowStatus == 'released' ? 'Colis remis' : 'Argent en attente';
+          subtitle = _escrowStatus == 'released'
+              ? 'Le client a reçu le colis. L\'argent est sur votre compte.'
+              : 'L\'argent sera versé quand le client aura reçu le colis.';
         } else {
-          title = 'Paiement direct confirmé ⚡';
-          subtitle = 'Fonds reçus en direct sans intermédiaire';
+          title = 'Paiement reçu';
+          subtitle = 'L\'argent est sur votre compte.';
         }
         break;
     }
@@ -379,7 +356,7 @@ class _PosTabState extends State<PosTab> {
         ),
         const SizedBox(width: 10),
         StatusPill(
-          label: _isDistanceMode ? 'Séquestre 🛡️' : 'Comptoir',
+          label: _isDistanceMode ? 'Livraison' : 'Sur place',
           tone: _isDistanceMode ? PillTone.whatsapp : PillTone.info,
           icon: _isDistanceMode ? Icons.shield_rounded : Icons.storefront_rounded,
         ),
@@ -401,15 +378,13 @@ class _PosTabState extends State<PosTab> {
         _buildAmountDisplay(),
         const SizedBox(height: 12),
         _buildPresets(),
-        const SizedBox(height: 12),
-        _buildKeypad(),
         const SizedBox(height: 16),
         TextField(
           controller: _descController,
           textInputAction: TextInputAction.done,
           maxLength: 60,
           decoration: InputDecoration(
-            labelText: _isDistanceMode ? 'Article à expédier' : 'Article / description',
+            labelText: 'Nom de l\'article',
             hintText: 'ex : Sac artisanal, chaussures cuir…',
             prefixIcon: Icon(_isDistanceMode ? Icons.local_shipping_outlined : Icons.shopping_bag_outlined),
             counterText: '',
@@ -439,12 +414,12 @@ class _PosTabState extends State<PosTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SÉQUESTRE BILATÉRAL ANTI-ARNAQUE',
+                  'COMMENT ÇA MARCHE',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.whatsappDark, letterSpacing: 0.5),
                 ),
                 SizedBox(height: 3),
                 Text(
-                  '1. Le client paie d\'avance en toute confiance (ses fonds sont verrouillés sous séquestre).\n2. Vous expédiez le colis avec certitude d\'être payé.\n3. Les fonds ne sont libérés qu\'à la remise physique du colis.',
+                  '1. Le client paie maintenant. L\'argent est gardé.\n2. Vous envoyez le colis.\n3. L\'argent arrive sur votre compte quand le client reçoit le colis.',
                   style: TextStyle(fontSize: 11.5, color: AppColors.textBody, height: 1.35),
                 ),
               ],
@@ -466,7 +441,7 @@ class _PosTabState extends State<PosTab> {
         children: [
           Expanded(
             child: _ChannelOption(
-              label: 'Comptoir (TPE)',
+              label: 'En boutique',
               icon: Icons.storefront_rounded,
               selected: !_isDistanceMode,
               color: AppColors.primary,
@@ -475,7 +450,7 @@ class _PosTabState extends State<PosTab> {
           ),
           Expanded(
             child: _ChannelOption(
-              label: 'WhatsApp (Séquestre)',
+              label: 'Livraison',
               icon: Icons.shield_rounded,
               selected: _isDistanceMode,
               color: AppColors.whatsappDark,
@@ -507,7 +482,7 @@ class _PosTabState extends State<PosTab> {
             children: [
               Expanded(
                 child: Text(
-                  _isDistanceMode ? 'MONTANT DE LA COMMANDE' : 'MONTANT À ENCAISSER',
+                  _isDistanceMode ? 'MONTANT À PAYER' : 'MONTANT À ENCAISSER',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -532,7 +507,7 @@ class _PosTabState extends State<PosTab> {
                         Icon(Icons.swap_horiz_rounded, size: 16, color: _accent),
                         const SizedBox(width: 4),
                         Text(
-                          _inputInFcfa ? 'Saisir en SATS' : 'Saisir en FCFA',
+                          _inputInFcfa ? 'Écrire en sats' : 'Écrire en francs',
                           style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _accent),
                         ),
                       ],
@@ -542,34 +517,37 @@ class _PosTabState extends State<PosTab> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 62,
-            width: double.infinity,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    Formatters.thousands(_enteredValue),
-                    style: TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.w900,
-                      color: _accent,
-                      letterSpacing: -1,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    unit,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _amountController,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(9),
+            ],
+            style: TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.w900,
+              color: _accent,
+              letterSpacing: -1,
             ),
+            decoration: InputDecoration(
+              hintText: '0',
+              hintStyle: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.w900,
+                color: _accent.withValues(alpha: 0.28),
+              ),
+              suffixText: unit,
+              suffixStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              isDense: true,
+            ),
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 4),
           Text(
@@ -594,14 +572,14 @@ class _PosTabState extends State<PosTab> {
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final preset = presets[index];
-          final selected = preset == _amountInput;
+          final selected = preset == _amountController.text;
           return Material(
             color: selected ? _accent : AppColors.card,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
                 HapticFeedback.selectionClick();
-                setState(() => _amountInput = preset);
+                setState(() => _amountController.text = preset);
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
@@ -627,45 +605,9 @@ class _PosTabState extends State<PosTab> {
     );
   }
 
-  Widget _buildKeypad() {
-    const rows = [
-      ['1', '2', '3'],
-      ['4', '5', '6'],
-      ['7', '8', '9'],
-      ['00', '0', _backspace],
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          for (final row in rows)
-            Row(
-              children: [
-                for (final key in row)
-                  Expanded(
-                    child: _KeypadButton(
-                      label: key,
-                      isBackspace: key == _backspace,
-                      onTap: () => _onKeyTap(key),
-                      onLongPress: key == _backspace ? _clearAmount : null,
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPrimaryButton() {
     final color = _isDistanceMode ? AppColors.whatsapp : AppColors.primary;
-    final label = _isDistanceMode ? 'Créer la commande sous séquestre 🛡️' : 'Générer le QR code TPE';
+    final label = _isDistanceMode ? 'Créer le paiement' : 'Afficher le QR code';
     final enabled = !_isLoading && _sats > 0;
 
     return SizedBox(
@@ -759,7 +701,7 @@ class _PosTabState extends State<PosTab> {
                   _isExpired
                       ? const StatusPill(label: 'Expirée', tone: PillTone.neutral, icon: Icons.timer_off_rounded)
                       : (_isDistanceMode
-                          ? const StatusPill(label: 'Séquestre en attente', tone: PillTone.warning, icon: Icons.lock_clock_rounded)
+                          ? const StatusPill(label: 'En attente du client', tone: PillTone.warning, icon: Icons.lock_clock_rounded)
                           : const StatusPill(label: 'En attente', tone: PillTone.warning, icon: Icons.schedule_rounded)),
                 ],
               ),
@@ -794,10 +736,10 @@ class _PosTabState extends State<PosTab> {
                   Flexible(
                     child: Text(
                       _isExpired
-                          ? 'Délai dépassé — créez une nouvelle facture'
+                          ? 'Le délai est dépassé. Créez un nouveau paiement.'
                           : (_isDistanceMode
-                              ? 'En attente du verrouillage des fonds par le client • ${Formatters.elapsed(elapsed)}'
-                              : 'Écoute du réseau Lightning • ${Formatters.elapsed(elapsed)}'),
+                              ? 'En attente du paiement du client • ${Formatters.elapsed(elapsed)}'
+                              : 'En attente du paiement • ${Formatters.elapsed(elapsed)}'),
                       maxLines: 2,
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
@@ -816,7 +758,7 @@ class _PosTabState extends State<PosTab> {
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.copy_rounded, size: 18),
                 label: const Text('Copier', maxLines: 1, overflow: TextOverflow.ellipsis),
-                onPressed: () => _copy(bolt11, 'Facture Lightning copiée !'),
+                onPressed: () => _copy(bolt11, 'Code de paiement copié.'),
               ),
             ),
             const SizedBox(width: 10),
@@ -824,7 +766,7 @@ class _PosTabState extends State<PosTab> {
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
                 icon: const Icon(Icons.share_rounded, size: 18),
-                label: const Text('WhatsApp', maxLines: 1, overflow: TextOverflow.ellipsis),
+                label: const Text('Partager', maxLines: 1, overflow: TextOverflow.ellipsis),
                 onPressed: _shareInvoice,
               ),
             ),
@@ -835,7 +777,7 @@ class _PosTabState extends State<PosTab> {
           style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
           onPressed: _resetToInput,
           icon: const Icon(Icons.close_rounded, size: 18),
-          label: Text(_isExpired ? 'Nouvelle facture' : 'Annuler la facture'),
+          label: Text(_isExpired ? 'Nouveau paiement' : 'Annuler'),
         ),
       ],
     );
@@ -855,7 +797,7 @@ class _PosTabState extends State<PosTab> {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Le client règle par le lien WhatsApp : ses fonds sont verrouillés sous séquestre jusqu\'à la remise physique du colis.',
+              'Envoyez le lien au client. Il paie, et l\'argent reste gardé jusqu\'à ce qu\'il reçoive le colis.',
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12.5, color: AppColors.textBody, height: 1.35),
@@ -958,8 +900,8 @@ class _PosTabState extends State<PosTab> {
               const SizedBox(height: 18),
               Text(
                 isEscrowLocked
-                    ? 'Fonds sous Séquestre Garantis 🔒'
-                    : (isEscrowReleased ? 'Colis Livré & Fonds Débloqués ! 🔓' : 'Paiement Reçu avec Succès ! ⚡'),
+                    ? 'Argent reçu, en attente de livraison'
+                    : (isEscrowReleased ? 'Colis remis, argent disponible' : 'Paiement reçu'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
               ),
@@ -976,7 +918,7 @@ class _PosTabState extends State<PosTab> {
                 ),
               ),
               Text(
-                '≈ ${Formatters.fcfa(fcfa)} • ${isEscrowLocked ? "bloqué sous séquestre" : "disponible dans votre solde"}',
+                '≈ ${Formatters.fcfa(fcfa)} • ${isEscrowLocked ? "gardé jusqu'à la livraison" : "disponible sur votre compte"}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
@@ -1006,8 +948,8 @@ class _PosTabState extends State<PosTab> {
                         Expanded(
                           child: Text(
                             isEscrowLocked
-                                ? 'EXPÉDITION AUTORISÉE (FONDS BLOQUÉS)'
-                                : 'REMISE DU COLIS CERTIFIÉE CONFORME',
+                                ? 'VOUS POUVEZ ENVOYER LE COLIS'
+                                : 'LE CLIENT A REÇU LE COLIS',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1023,8 +965,8 @@ class _PosTabState extends State<PosTab> {
                     const SizedBox(height: 6),
                     Text(
                       isEscrowLocked
-                          ? 'Le client a réglé avec succès. Les fonds sont consignés sous séquestre. Confiez le colis au coursier en toute sécurité.'
-                          : 'Le client a validé son colis en mains propres. Les fonds ont été crédités dans votre solde disponible.',
+                          ? 'Le client a payé. L\'argent est gardé. Vous pouvez envoyer le colis.'
+                          : 'Le client a reçu le colis. L\'argent est maintenant sur votre compte.',
                       style: const TextStyle(fontSize: 12, color: AppColors.textBody, height: 1.35),
                     ),
                     if (isEscrowLocked) ...[
@@ -1045,7 +987,7 @@ class _PosTabState extends State<PosTab> {
                                 SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    'Code Secret Client (Remis à la livraison)',
+                                    'Code donné par le client',
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -1090,7 +1032,7 @@ class _PosTabState extends State<PosTab> {
                             ),
                             const SizedBox(height: 6),
                             const Text(
-                              'Demandez au client le code à 4 chiffres affiché sur sa page de reçu après inspection du colis.',
+                              'Demandez au client le code affiché sur son reçu, une fois le colis vérifié.',
                               style: TextStyle(fontSize: 10.5, color: AppColors.textMuted),
                             ),
                           ],
@@ -1111,7 +1053,7 @@ class _PosTabState extends State<PosTab> {
                             SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'CADENAS OUVERT 🔓 — Remise certifiée et fonds disponibles.',
+                                'Colis remis. L\'argent est disponible.',
                                 style: TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
@@ -1151,7 +1093,7 @@ class _PosTabState extends State<PosTab> {
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.lock_open_rounded, size: 20),
               label: Text(
-                _isReleasingEscrow ? 'Déblocage en cours…' : 'DÉBLOQUER LE CADENAS & ENCAISSER 🔓',
+                _isReleasingEscrow ? 'Validation en cours…' : 'Valider la livraison et encaisser',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
@@ -1169,7 +1111,7 @@ class _PosTabState extends State<PosTab> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.whatsapp),
             icon: const Icon(Icons.share_rounded, size: 18),
             label: Text(
-              isEscrowLocked ? 'Envoyer le reçu sous séquestre au client' : 'Partager la preuve de remise WhatsApp',
+              isEscrowLocked ? 'Envoyer le reçu au client' : 'Envoyer la preuve sur WhatsApp',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1250,43 +1192,3 @@ class _ChannelOption extends StatelessWidget {
   }
 }
 
-class _KeypadButton extends StatelessWidget {
-  final String label;
-  final bool isBackspace;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-
-  const _KeypadButton({
-    required this.label,
-    required this.onTap,
-    this.isBackspace = false,
-    this.onLongPress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(3),
-      child: Material(
-        color: isBackspace ? AppColors.surfaceMuted : AppColors.background,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 54,
-            child: Center(
-              child: isBackspace
-                  ? const Icon(Icons.backspace_outlined, color: AppColors.textBody, size: 22)
-                  : Text(
-                      label,
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -245,10 +245,20 @@ export async function getInvoice(reference) {
 export function extractScanCode(raw) {
   let text = String(raw || '').trim();
   if (text.toLowerCase().startsWith('lightning:')) text = text.slice('lightning:'.length);
+  if (text.toLowerCase().startsWith('paychain://pay/')) {
+    text = text.slice('paychain://pay/'.length).split('?')[0].split('#')[0].trim();
+  }
   if (text.includes('/pay/')) {
     text = text.split('/pay/').pop().split('?')[0].split('#')[0].trim();
   }
   return text.trim();
+}
+
+/** Statut public : sans code de déblocage ni preimage (réservé à l’acheteur après paiement). */
+export function publicInvoiceStatus(invoice) {
+  if (!invoice) return null;
+  const { releaseCode, preimage, ...safe } = invoice;
+  return safe;
 }
 
 export async function findInvoiceByScan(raw) {
@@ -516,8 +526,8 @@ export async function buildWalletPayload(userId) {
     status: displayStatus(invoice),
     isEscrow: invoice.isEscrow,
     escrowStatus: invoice.escrowStatus,
-    releaseCode: invoice.releaseCode,
-    preimage: invoice.preimage,
+    releaseCode: invoice.escrowStatus === 'released' ? invoice.releaseCode : null,
+    preimage: invoice.escrowStatus === 'released' ? invoice.preimage : null,
     request: invoice.bolt11,
   }));
 

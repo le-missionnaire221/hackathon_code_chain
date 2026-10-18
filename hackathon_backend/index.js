@@ -3,7 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { bitnob } from './bitnob.js';
 import dns from 'node:dns';
-import { initDb, pool, getInvoice, createInvoiceRecord, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, SAT_TO_FCFA } from './db.js';
+import { initDb, pool, getInvoice, createInvoiceRecord, settleInvoice, releaseInvoice, buildWalletPayload, findInvoiceByScan, payFromBuyerWallet, publicInvoiceStatus, SAT_TO_FCFA } from './db.js';
 import { requireAuth, mountAuth } from './auth.js';
 import { mountDocs } from './swagger.js';
 import { mountAdmin } from './admin.js';
@@ -79,7 +79,7 @@ app.post('/invoice', requireAuth, async (req, res) => {
       description: label,
       expiry: 3600,
       reference: reference,
-      auto_settle: true
+      auto_settle: false
     });
 
     if (invoiceResponse.status >= 400 || invoiceResponse.error || invoiceResponse.code) {
@@ -117,13 +117,49 @@ app.post('/invoice', requireAuth, async (req, res) => {
   }
 });
 
+async function reconcileInvoice(invoice) {
+  if (!invoice || invoice.status === 'paid' || !invoice.bitnobId) return invoice;
+  try {
+    const bitnobCheck = await bitnob('GET', `/api/lightning/invoices/${invoice.bitnobId}`);
+    if (bitnobCheck.data?.status === 'paid') {
+      const settled = await settleInvoice(invoice.reference, { preimage: bitnobCheck.data.preimage });
+      console.log(`✅ [BITNOB SETTLEMENT] ${invoice.reference} réglée. Code: ${settled?.releaseCode}`);
+      return settled || invoice;
+    }
+  } catch {
+    // Le polling suivant réessaiera.
+  }
+  return invoice;
+}
+
 // === SUIVI DU STATUT DE L'INVOICE & DU SÉQUESTRE ===
 app.get('/invoice/:reference/status', async (req, res) => {
   const invoice = await getInvoice(req.params.reference);
   if (!invoice) {
     return res.status(404).json({ error: "Invoice non trouvée" });
   }
-  res.json(invoice);
+  res.json(publicInvoiceStatus(await reconcileInvoice(invoice)));
+});
+
+// === CODE CLIENT (après paiement uniquement, pour la page /pay) ===
+app.get('/invoice/:reference/client-view', async (req, res) => {
+  let invoice = await getInvoice(req.params.reference);
+  if (!invoice) {
+    return res.status(404).json({ error: 'Facture introuvable' });
+  }
+  invoice = await reconcileInvoice(invoice);
+  if (invoice.status !== 'paid') {
+    return res.json(publicInvoiceStatus(invoice));
+  }
+  res.json({
+    reference: invoice.reference,
+    status: invoice.status,
+    escrowStatus: invoice.escrowStatus,
+    isEscrow: invoice.isEscrow,
+    releaseCode: invoice.releaseCode,
+    amount: invoice.amount,
+    description: invoice.description,
+  });
 });
 
 // === LECTURE D'UN QR LIGHTNING, D'UN LIEN OU D'UNE RÉFÉRENCE ===
@@ -132,7 +168,7 @@ app.post('/invoice/lookup', async (req, res) => {
   if (!invoice) {
     return res.status(404).json({ error: 'QR code ou facture introuvable' });
   }
-  res.json(invoice);
+  res.json(publicInvoiceStatus(invoice));
 });
 
 // === PAIEMENT LIGHTNING VIA BITNOB SANDBOX ===
@@ -654,79 +690,70 @@ app.get('/pay/:reference', async (req, res) => {
         <div id="banner-mobile" class="device-banner">
           <span class="icon">📱</span>
           <div>
-            <strong>Vous êtes sur votre smartphone :</strong><br>
-            Pas besoin de scanner ! Ouvrez votre portefeuille en 1 clic.
+            <strong>Sur téléphone :</strong><br>
+            Vérifiez la facture, puis appuyez sur Payer.
           </div>
         </div>
 
         <div id="banner-pc" class="device-banner" style="display: none; background: rgba(0, 82, 255, 0.08); border-color: rgba(0, 82, 255, 0.25); color: #93C5FD;">
           <span class="icon">💻</span>
           <div>
-            <strong>Vous êtes sur votre ordinateur :</strong><br>
-            Prenez votre smartphone et scannez le QR code ci-dessous.
+            <strong>Sur ordinateur :</strong><br>
+            Scannez le QR code avec PayChain, Blink, Phoenix ou un autre portefeuille Lightning.
           </div>
         </div>
 
         <!-- COMMANDE INFOS -->
         <div class="order-info">
           <div class="order-badge">
-            ${isEscrow ? '🛡️ Séquestre Anti-Arnaque' : '⚡ Paiement Direct'}
+            ${isEscrow ? 'Livraison · argent gardé' : 'Paiement direct'}
           </div>
-          <div class="order-title">${invoice.description || 'Commande PayChain'}</div>
+          <div class="order-title">${invoice.description || 'Paiement PayChain'}</div>
           <div class="order-amount-fcfa">${fcfaAmount.toLocaleString('fr-FR')} FCFA</div>
-          <div class="order-amount-sats">⚡ ${invoice.amount.toLocaleString()} Satoshis</div>
+          <div class="order-amount-sats">≈ ${invoice.amount.toLocaleString()} sats</div>
         </div>
 
         <!-- ZONE EN ATTENTE DE PAIEMENT -->
         <div id="pending-zone">
 
-          <!-- VUE PC : QR CODE MIS EN AVANT -->
+          <!-- VUE PC : QR CODE LIGHTNING -->
           <div id="view-pc" style="display: none;">
             <div class="qr-card-pc">
               <div class="qr-wrapper">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(invoice.bolt11)}" alt="QR Code Lightning BOLT11" />
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent('lightning:' + invoice.bolt11)}" alt="QR Code Lightning" />
               </div>
               <div class="qr-instructions">
-                Scannez avec <strong>Blink</strong>, <strong>Phoenix</strong>, <strong>Strike</strong>, <strong>WoS</strong> ou tout wallet Lightning
+                Scannez avec <strong>PayChain</strong>, <strong>Blink</strong>, <strong>Phoenix</strong> ou un autre portefeuille Lightning
               </div>
             </div>
           </div>
 
-          <!-- ACTIONS PRINCIPALES -->
-          <div class="actions">
-            <!-- BOUTON DEEP LINK (Optimisé pour Mobile) -->
-            <a class="btn btn-primary" href="lightning:${invoice.bolt11}" onclick="handleDeepLink(event)">
-              <span>⚡ Payer avec mon Portefeuille Lightning</span>
-              <span class="subtext">Ouvre Blink, Phoenix, Strike, CashApp… en 1 clic</span>
-            </a>
-
-            <button class="btn btn-secondary" onclick="copyInvoice()">
-              📋 <span id="copy-text">Copier la Facture Lightning</span>
+          <!-- ACTIONS PRINCIPALES (surtout mobile) -->
+          <div class="actions" id="mobile-actions">
+            <button class="btn btn-primary" type="button" onclick="startPay()">
+              <span>Payer</span>
+              <span class="subtext">PayChain si installé, sinon choix du portefeuille</span>
             </button>
 
-            <button id="instant-pay-btn" class="btn btn-demo" onclick="instantPay()">
-              🛡️ Confirmer le Dépôt sous Séquestre (Démo 1-Clic)
+            <button class="btn btn-secondary" type="button" onclick="copyInvoice()">
+              <span id="copy-text">Copier le code Lightning</span>
             </button>
           </div>
 
-          <!-- VUE MOBILE : ACCORDÉON POUR VOIR LE QR CODE SI BESOIN -->
-          <div id="view-mobile" class="qr-accordion">
-            <button class="accordion-toggle" onclick="toggleQr()">
-              📷 <span id="accordion-label">Vous avez un 2ème téléphone ? Afficher le QR Code ▼</span>
-            </button>
-            <div id="collapsible-qr" class="accordion-content" style="display: none;">
-              <div class="qr-wrapper">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(invoice.bolt11)}" alt="QR Code Lightning BOLT11" />
-              </div>
-            </div>
+          <!-- CHOIX DES APPS SI PAYCHAIN N'EST PAS INSTALLÉ -->
+          <div id="wallet-sheet" style="display: none; margin-top: 14px; padding: 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 16px;">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text);">Choisissez une application</div>
+            <button class="btn btn-primary" type="button" style="margin-bottom: 8px;" onclick="openPayChain()">PayChain</button>
+            <a class="btn btn-secondary" href="lightning:${invoice.bolt11}" style="margin-bottom: 8px; text-decoration: none;">Blink / Phoenix / autre Lightning</a>
+            <button class="btn btn-secondary" type="button" onclick="copyInvoice()">Copier le code Lightning</button>
           </div>
 
           ${isEscrow ? `
             <div class="guarantee-box">
               <span style="font-size: 18px;">🛡️</span>
               <div>
-                <strong>Garantie Séquestre Acheteur :</strong>
-                Vos fonds sont consignés sous séquestre sécurisé. Le vendeur ne sera payé que lorsque vous aurez inspecté votre colis en mains propres !
+                <strong>Livraison sécurisée :</strong>
+                Vous payez maintenant. L'argent est gardé. Le marchand le reçoit seulement quand vous avez le colis et que vous lui donnez le code.
               </div>
             </div>
           ` : ''}
@@ -734,23 +761,21 @@ app.get('/pay/:reference', async (req, res) => {
 
         <!-- ZONE PAIEMENT EFFECTUÉ & CODE SECRET -->
         <div id="paid-zone" class="paid-card">
-          <div class="shield-icon">🛡️</div>
-          <div class="paid-title">Fonds Consignés sous Séquestre !</div>
-          <div class="paid-subtitle">Votre paiement a été validé et verrouillé avec succès.</div>
+          <div class="shield-icon">✅</div>
+          <div class="paid-title">${isEscrow ? 'Paiement reçu · argent gardé' : 'Paiement reçu'}</div>
+          <div class="paid-subtitle">${isEscrow ? 'Donnez le code au marchand seulement quand vous avez le colis.' : 'Le marchand a bien reçu le paiement.'}</div>
 
-          <div class="code-box">
-            <div class="code-label">🔑 VOTRE CODE SECRET DE DÉBLOCAGE (OTP)</div>
-            <div class="code-digits" id="otp-display">${invoice.releaseCode || '••••'}</div>
+          <div class="code-box" style="${isEscrow ? '' : 'display:none'}">
+            <div class="code-label">Votre code à donner à la livraison</div>
+            <div class="code-digits" id="otp-display">••••</div>
           </div>
 
-          <div class="instructions-box">
-            ⚠️ <strong>RÈGLE D'OR DE SÉCURITÉ :</strong><br>
-            Conservez précieusement ce code à 4 chiffres. Ne le remettez au livreur <strong>qu'après avoir vérifié la conformité de votre colis</strong>.<br><br>
-            C'est ce code qui débloquera le paiement vers le compte du marchand.
+          <div class="instructions-box" style="${isEscrow ? '' : 'display:none'}">
+            Gardez ce code. Donnez-le au marchand seulement après avoir vérifié le colis. C'est ce code qui débloque son argent.
           </div>
 
           <div id="live-status-chip" class="status-chip">
-            🔒 Statut : Fonds verrouillés sous séquestre
+            ${isEscrow ? 'Argent gardé jusqu’à la livraison' : 'Paiement confirmé'}
           </div>
         </div>
       </div>
@@ -761,8 +786,9 @@ app.get('/pay/:reference', async (req, res) => {
       <script>
         const ref = "${reference}";
         const bolt11 = "${invoice.bolt11}";
+        const paychainUrl = "paychain://pay/" + ref;
         let isPaid = ${invoice.status === 'paid'};
-        let serverIsMobile = ${isMobileServer};
+        let payChainTried = false;
 
         function showToast(msg) {
           const t = document.getElementById('toast');
@@ -775,110 +801,97 @@ app.get('/pay/:reference', async (req, res) => {
           const isMobile = mode === 'mobile';
           document.getElementById('btn-mode-mobile').className = 'mode-btn' + (isMobile ? ' active' : '');
           document.getElementById('btn-mode-pc').className = 'mode-btn' + (!isMobile ? ' active' : '');
-
           document.getElementById('banner-mobile').style.display = isMobile ? 'flex' : 'none';
           document.getElementById('banner-pc').style.display = isMobile ? 'none' : 'flex';
-
           document.getElementById('view-pc').style.display = isMobile ? 'none' : 'block';
-          document.getElementById('view-mobile').style.display = isMobile ? 'block' : 'none';
-        }
-
-        // Détection initiale intelligente
-        const clientIsMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-        setDeviceMode(clientIsMobile ? 'mobile' : 'pc');
-
-        function toggleQr() {
-          const box = document.getElementById('collapsible-qr');
-          const lbl = document.getElementById('accordion-label');
-          if (box.style.display === 'none') {
-            box.style.display = 'block';
-            lbl.innerText = 'Masquer le QR Code ▲';
-          } else {
-            box.style.display = 'none';
-            lbl.innerText = 'Vous avez un 2ème téléphone ? Afficher le QR Code ▼';
+          document.getElementById('mobile-actions').style.display = isMobile ? 'flex' : 'none';
+          if (!isMobile) {
+            document.getElementById('wallet-sheet').style.display = 'none';
           }
         }
+
+        const clientIsMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        setDeviceMode(clientIsMobile ? 'mobile' : 'pc');
 
         function copyInvoice() {
           navigator.clipboard.writeText(bolt11).then(() => {
             const btn = document.getElementById('copy-text');
-            btn.innerText = 'Copié dans le presse-papier ! ✅';
-            showToast('Facture Lightning copiée ! Ouvrez votre wallet pour coller.');
-            setTimeout(() => { btn.innerText = 'Copier la Facture Lightning'; }, 2500);
+            if (btn) btn.innerText = 'Code copié';
+            showToast('Code Lightning copié. Collez-le dans votre portefeuille.');
+            setTimeout(() => { if (btn) btn.innerText = 'Copier le code Lightning'; }, 2500);
           });
         }
 
-        function handleDeepLink(e) {
-          // Copie également la facture en arrière-plan pour assurer le coup
-          navigator.clipboard.writeText(bolt11).catch(() => {});
-          showToast('🚀 Lancement de votre portefeuille Lightning…');
+        function openPayChain() {
+          window.location.href = paychainUrl;
         }
 
-        async function instantPay() {
-          const btn = document.getElementById('instant-pay-btn');
-          if (btn) {
-            btn.innerText = 'Règlement en cours… ⏳';
-            btn.disabled = true;
-          }
-          try {
-            const res = await fetch('/invoice/' + ref + '/pay', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-              isPaid = true;
-              showPaid(data.releaseCode || data.invoice?.releaseCode, data.escrowStatus || data.invoice?.escrowStatus);
-            } else if (btn) {
-              btn.innerText = data.error || 'Payez avec Blink ou l’application PayChain';
-              btn.disabled = false;
+        function showWalletChooser() {
+          document.getElementById('wallet-sheet').style.display = 'block';
+          showToast('Choisissez une application pour payer');
+        }
+
+        function startPay() {
+          payChainTried = true;
+          let hidden = false;
+          const onHide = () => { hidden = true; };
+          document.addEventListener('visibilitychange', onHide);
+          window.addEventListener('pagehide', onHide);
+          openPayChain();
+          setTimeout(() => {
+            document.removeEventListener('visibilitychange', onHide);
+            window.removeEventListener('pagehide', onHide);
+            if (!hidden && !document.hidden) {
+              showWalletChooser();
             }
-          } catch(e) {
-            if (btn) {
-              btn.innerText = 'Erreur';
-              setTimeout(() => {
-                btn.innerText = '🛡️ Confirmer le Dépôt sous Séquestre (Démo 1-Clic)';
-                btn.disabled = false;
-              }, 2000);
-            }
-          }
+          }, 1600);
         }
 
         function showPaid(code, escrowStatus) {
           document.getElementById('pending-zone').style.display = 'none';
           document.getElementById('banner-mobile').style.display = 'none';
           document.getElementById('banner-pc').style.display = 'none';
-          const paidZone = document.getElementById('paid-zone');
-          paidZone.style.display = 'block';
+          document.getElementById('wallet-sheet').style.display = 'none';
+          document.getElementById('paid-zone').style.display = 'block';
           if (code) {
             document.getElementById('otp-display').innerText = code;
           }
           const chip = document.getElementById('live-status-chip');
           if (escrowStatus === 'released') {
             chip.className = 'status-chip released';
-            chip.innerHTML = '🔓 Commande livrée & Fonds transférés au vendeur';
+            chip.innerHTML = 'Colis remis · argent versé au marchand';
           }
         }
 
-        if (isPaid) {
-          showPaid("${invoice.releaseCode || ''}", "${invoice.escrowStatus || ''}");
+        async function refreshClientView() {
+          try {
+            const res = await fetch('/invoice/' + ref + '/client-view');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.status === 'paid') {
+              isPaid = true;
+              showPaid(data.releaseCode, data.escrowStatus);
+            }
+          } catch (e) {}
         }
 
-        // Sondage dynamique en temps réel
+        if (isPaid) {
+          refreshClientView();
+        }
+
         setInterval(async () => {
           try {
             const res = await fetch('/invoice/' + ref + '/status');
-            if (res.ok) {
-              const data = await res.json();
-              if (data.status === 'paid' && !isPaid) {
-                isPaid = true;
-                showPaid(data.releaseCode, data.escrowStatus);
-              } else if (data.status === 'paid' && isPaid) {
-                const chip = document.getElementById('live-status-chip');
-                if (data.escrowStatus === 'released') {
-                  chip.className = 'status-chip released';
-                  chip.innerHTML = '🔓 Commande livrée & Fonds transférés au vendeur';
-                }
-              }
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.status === 'paid' && !isPaid) {
+              await refreshClientView();
+            } else if (data.status === 'paid' && data.escrowStatus === 'released') {
+              const chip = document.getElementById('live-status-chip');
+              chip.className = 'status-chip released';
+              chip.innerHTML = 'Colis remis · argent versé au marchand';
             }
-          } catch(e) {}
+          } catch (e) {}
         }, 2000);
       </script>
     </body>
@@ -938,7 +951,14 @@ app.post('/webhook', async (req, res) => {
 
   const eventName = req.body.event || (req.body.test ? 'test' : 'inconnu');
   if (eventName === 'lightning.invoice.paid') {
-    console.log(`ℹ️ [BITNOB] Facture ${req.body.data?.reference || ''} marquée payée par le sandbox. En attente du compte acheteur.`);
+    const ref = req.body.data?.reference;
+    if (ref) {
+      const current = await getInvoice(ref);
+      if (current && current.status !== 'paid') {
+        await settleInvoice(ref, { preimage: req.body.data?.preimage || current.preimage });
+        console.log(`✅ [WEBHOOK] ${ref} réglée via Bitnob`);
+      }
+    }
   }
 
   res.sendStatus(200);

@@ -10,23 +10,27 @@ import 'common/app_bottom_sheet.dart';
 class BuyerPaymentSheet extends StatefulWidget {
   final String backendUrl;
   final VoidCallback? onPaymentSuccess;
+  final String? initialCode;
 
   const BuyerPaymentSheet({
     super.key,
     required this.backendUrl,
     this.onPaymentSuccess,
+    this.initialCode,
   });
 
   static void show(
     BuildContext context, {
     required String backendUrl,
     VoidCallback? onPaymentSuccess,
+    String? initialCode,
   }) {
     AppBottomSheet.show(
       context,
       BuyerPaymentSheet(
         backendUrl: backendUrl,
         onPaymentSuccess: onPaymentSuccess,
+        initialCode: initialCode,
       ),
     );
   }
@@ -46,6 +50,18 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
   String? _extractedRef;
 
   @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialCode?.trim();
+    if (initial != null && initial.isNotEmpty) {
+      _inputController.text = initial;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _lookupInvoice(initial);
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _inputController.dispose();
     super.dispose();
@@ -53,6 +69,10 @@ class _BuyerPaymentSheetState extends State<BuyerPaymentSheet> {
 
   String _cleanReference(String raw) {
     String text = raw.trim();
+    final lower = text.toLowerCase();
+    if (lower.startsWith('paychain://pay/')) {
+      text = text.substring('paychain://pay/'.length).split('?').first.split('#').first.trim();
+    }
     if (text.contains('/pay/')) {
       final parts = text.split('/pay/');
       if (parts.length > 1) {
