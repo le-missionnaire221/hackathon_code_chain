@@ -3,360 +3,1677 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RAK TAK CASH Admin</title>
+  <title>RAK TAK CASH • Console d'Administration Superviseur</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --blue: #0052ff;
-      --ink: #0f172a;
-      --muted: #64748b;
-      --line: #e2e8f0;
-      --bg: #f8fafc;
-      --ok: #059669;
-      --danger: #dc2626;
-      --amber: #d97706;
+      --bg-dark: #060e1a;
+      --bg-surface: #0a192f;
+      --bg-card: rgba(13, 27, 49, 0.75);
+      --bg-card-hover: rgba(19, 39, 70, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(0, 82, 255, 0.4);
+      --primary: #0052FF;
+      --primary-glow: rgba(0, 82, 255, 0.35);
+      --primary-light: #387aff;
+      --gold: #FFD166;
+      --gold-glow: rgba(255, 209, 102, 0.35);
+      --sapphire: #0A2540;
+      --emerald: #10B981;
+      --emerald-glow: rgba(16, 185, 129, 0.3);
+      --ruby: #EF4444;
+      --amber: #F59E0B;
+      --text-main: #FFFFFF;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --font-heading: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
     }
-    * { box-sizing: border-box; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      margin: 0;
-      font-family: "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--ink);
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 15% 15%, rgba(0, 82, 255, 0.18) 0px, transparent 50%),
+        radial-gradient(at 85% 85%, rgba(255, 209, 102, 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(10, 37, 64, 0.6) 0px, transparent 75%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
     }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 82, 255, 0.5); }
+
+    /* Entête / Navbar */
     header {
+      background: rgba(10, 25, 47, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 14px 32px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
       display: flex;
       justify-content: space-between;
-      gap: 16px;
       align-items: center;
-      padding: 18px 28px;
-      background: #0a2540;
-      color: white;
+      transition: all 0.3s ease;
     }
-    header h1 { margin: 0; font-size: 20px; }
-    header p { margin: 4px 0 0; color: #cbd5e1; font-size: 13px; }
-    button, input {
-      font: inherit;
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 16px;
     }
-    button {
-      border: 0;
+
+    .logo-badge {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: #000;
+      border: 1px solid rgba(255, 209, 102, 0.3);
+      padding: 4px;
+      box-shadow: 0 0 16px var(--primary-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .logo-badge:hover { transform: scale(1.08) rotate(3deg); }
+    .logo-badge img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
+
+    .brand-title {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--gold), #f39c12);
+      color: #060e1a;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 13px;
+      padding: 9px 16px;
       border-radius: 10px;
-      padding: 10px 14px;
-      background: var(--blue);
-      color: white;
+      border: 1px solid transparent;
       cursor: pointer;
-      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      outline: none;
     }
-    button.ghost { background: transparent; color: white; border: 1px solid rgba(255,255,255,.35); }
-    button.warn { background: #fff7ed; color: var(--amber); }
-    button.ok { background: #ecfdf5; color: var(--ok); }
-    button:disabled { opacity: .6; cursor: default; }
-    main { padding: 24px 28px 48px; max-width: 1180px; margin: 0 auto; }
-    .login {
-      max-width: 420px;
-      margin: 48px auto;
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 28px;
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: #fff;
+      box-shadow: 0 4px 14px var(--primary-glow);
     }
-    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    input {
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(0, 82, 255, 0.55);
+      transform: translateY(-1px);
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, var(--gold), #f39c12);
+      color: #060e1a;
+      font-weight: 800;
+      box-shadow: 0 4px 14px var(--gold-glow);
+    }
+    .btn-gold:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(255, 209, 102, 0.5);
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-subtle);
+      color: var(--text-main);
+    }
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: var(--ruby);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-success {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--emerald);
+    }
+    .btn-success:hover {
+      background: rgba(16, 185, 129, 0.25);
+    }
+
+    /* Container Principal */
+    main {
+      flex: 1;
       width: 100%;
-      border: 1px solid var(--line);
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 28px 32px 64px;
+    }
+
+    /* ================================================= */
+    /* VUE CONNEXION ADMINISTRATEUR                      */
+    /* ================================================= */
+    .login-container {
+      min-height: 75vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .login-glass-card {
+      width: 100%;
+      max-width: 440px;
+      background: rgba(12, 26, 48, 0.85);
+      backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 36px 32px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      animation: floatUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes floatUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .login-glass-card::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      right: -120px;
+      width: 240px;
+      height: 240px;
+      background: radial-gradient(circle, rgba(0, 82, 255, 0.3) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .login-logo-aura {
+      width: 82px;
+      height: 82px;
+      margin: 0 auto 16px;
+      border-radius: 22px;
+      background: #000;
+      border: 2px solid rgba(255, 209, 102, 0.4);
+      padding: 6px;
+      box-shadow: 0 0 28px var(--primary-glow), 0 0 12px var(--gold-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-logo-aura img { width: 100%; height: 100%; object-fit: contain; border-radius: 16px; }
+
+    .login-header h1 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .login-header h1 span {
+      background: linear-gradient(135deg, #fff, var(--gold));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .login-header p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-dim);
+      font-size: 16px;
+      pointer-events: none;
+    }
+
+    .input-field {
+      width: 100%;
+      background: rgba(6, 14, 26, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 13px 14px 13px 42px;
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 14px;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+    .input-field:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.25);
+      background: rgba(6, 14, 26, 0.95);
+    }
+
+    .input-toggle-pwd {
+      position: absolute;
+      right: 12px;
+      background: transparent;
+      border: 0;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 16px;
+    }
+    .input-toggle-pwd:hover { color: #fff; }
+
+    .quick-demo-pill {
+      margin: 16px 0 20px;
+      background: rgba(255, 209, 102, 0.08);
+      border: 1px dashed rgba(255, 209, 102, 0.35);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .quick-demo-pill:hover {
+      background: rgba(255, 209, 102, 0.16);
+      border-color: var(--gold);
+      transform: translateY(-1px);
+    }
+    .quick-demo-pill span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gold);
+    }
+    .quick-demo-pill small {
+      background: rgba(255, 209, 102, 0.2);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .error-banner {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 10px 14px;
       border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 14px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      display: none;
+      align-items: center;
+      gap: 8px;
     }
-    .error { color: var(--danger); font-size: 13px; min-height: 18px; }
-    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
-    .kpi, .panel {
-      background: white;
-      border: 1px solid var(--line);
+
+    .login-footer-trust {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* ================================================= */
+    /* VUE DASHBOARD ADMINISTRATEUR                      */
+    /* ================================================= */
+    .dashboard-view {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      animation: fadeIn 0.4s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Cartes KPI */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 20px 22px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-hover);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--card-accent, var(--primary));
+    }
+
+    .kpi-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .kpi-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .kpi-icon-box {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--card-accent, var(--primary));
+      font-size: 18px;
+    }
+
+    .kpi-value {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .kpi-subtext {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Onglets de Navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 8px;
+      background: rgba(10, 25, 47, 0.6);
+      backdrop-filter: blur(12px);
+      padding: 6px;
+      border-radius: 14px;
+      border: 1px solid var(--border-subtle);
+      width: fit-content;
+    }
+
+    .tab-btn {
+      padding: 9px 18px;
+      border-radius: 10px;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.04); }
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    /* Panneaux de Contenu */
+    .panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .panel-title {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search-filter-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .search-input-wrap {
+      position: relative;
+    }
+    .search-input-wrap input {
+      background: rgba(6, 14, 26, 0.8);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 8px 12px 8px 34px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      width: 220px;
+      transition: width 0.2s ease, border-color 0.2s ease;
+    }
+    .search-input-wrap input:focus {
+      width: 260px;
+      border-color: var(--primary);
+    }
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    /* Tables élégantes */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    thead {
+      background: rgba(6, 14, 26, 0.8);
+    }
+
+    th {
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary), var(--sapphire));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      color: #fff;
+    }
+
+    .user-meta-name { font-weight: 700; font-size: 14px; }
+    .user-meta-phone { font-size: 12px; color: var(--text-muted); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .pill.pill-active {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .pill.pill-suspended {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--ruby);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .pill.pill-admin {
+      background: rgba(255, 209, 102, 0.15);
+      color: var(--gold);
+      border: 1px solid rgba(255, 209, 102, 0.3);
+    }
+
+    .pill.pill-escrow {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .pill.pill-paid {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .amount-highlight {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      color: #fff;
+    }
+    .amount-fcfa {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .code-ref {
+      font-family: monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 3px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+    }
+    .code-ref:hover {
+      border-color: var(--primary);
+      color: var(--gold);
+    }
+
+    /* Simulateur Branding & Mockup Mobile */
+    .branding-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+
+    .phone-mockup-frame {
+      width: 100%;
+      background: #000;
+      border: 10px solid #1e293b;
+      border-radius: 40px;
+      padding: 16px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+    }
+
+    .phone-mockup-speaker {
+      width: 60px;
+      height: 4px;
+      background: #334155;
+      border-radius: 2px;
+      margin: 0 auto 14px;
+    }
+
+    .phone-mockup-screen {
+      background: #0a192f;
+      border-radius: 24px;
+      padding: 20px 16px;
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+    }
+
+    .mockup-logo-img {
+      width: 64px;
+      height: 64px;
       border-radius: 16px;
+      object-fit: contain;
+      background: #000;
+      padding: 4px;
+      box-shadow: 0 0 16px var(--primary-glow);
+      margin-bottom: 12px;
     }
-    .kpi { padding: 16px; }
-    .kpi span { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-    .kpi strong { display: block; margin-top: 6px; font-size: 26px; }
-    .panel { padding: 16px; margin-bottom: 16px; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-    th { font-size: 12px; color: var(--muted); }
-    .row-actions { display: flex; gap: 6px; align-items: center; }
-    .row-actions input { width: 90px; margin: 0; padding: 8px; }
-    .pill { border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 700; }
-    .pill.on { background: #ecfdf5; color: var(--ok); }
-    .pill.off { background: #fef2f2; color: var(--danger); }
-    h2 { margin: 0 0 12px; font-size: 16px; }
-    @media (max-width: 900px) { .kpis { grid-template-columns: 1fr 1fr; } header, main { padding-left: 16px; padding-right: 16px; } }
+
+    .mockup-app-name {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .mockup-card-solde {
+      width: 100%;
+      background: linear-gradient(135deg, #0052FF, #003BB5, #0A2540);
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 16px;
+      text-align: left;
+      box-shadow: 0 8px 24px rgba(0, 82, 255, 0.3);
+    }
+
+    .upload-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      background: rgba(6, 14, 26, 0.4);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 20px;
+    }
+    .upload-zone:hover {
+      border-color: var(--primary);
+      background: rgba(0, 82, 255, 0.05);
+    }
+
+    /* Modal dialog */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .modal-content {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 460px;
+      padding: 28px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }
+
+    .modal-title {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .preset-chips {
+      display: flex;
+      gap: 8px;
+      margin: 10px 0 16px;
+      flex-wrap: wrap;
+    }
+
+    .preset-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .preset-chip:hover {
+      background: rgba(255, 209, 102, 0.15);
+      border-color: var(--gold);
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: rgba(10, 25, 47, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 14px 20px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+      animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Responsive */
+    @media (max-width: 1080px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .branding-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      header { padding: 12px 16px; }
+      main { padding: 16px 16px 40px; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .tabs-nav { width: 100%; overflow-x: auto; }
+    }
   </style>
 </head>
 <body>
+
+  <!-- Toast Notification Hub -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Header Global -->
   <header>
-    <div style="display:flex;align-items:center;gap:14px;">
-      <img id="header-logo" src="/static/logo_default.png" alt="Logo" style="height:42px;width:auto;border-radius:8px;background:#fff;padding:2px;" />
+    <div class="brand-cluster">
+      <div class="logo-badge">
+        <img id="nav-logo" src="/static/logo_default.png" alt="Logo" />
+      </div>
       <div>
-        <h1 id="header-title">RAK TAK CASH Admin</h1>
-        <p id="subtitle">Contrôle des comptes, portefeuilles et branding</p>
+        <div class="brand-title">
+          <span id="nav-app-name">RAK TAK CASH</span>
+          <span class="brand-badge">ADMIN</span>
+        </div>
+        <div class="brand-sub">
+          <span class="pulse-dot"></span>
+          <span>Réseau Lightning & Séquestre • Dakar 2026</span>
+        </div>
       </div>
     </div>
-    <button class="ghost" id="logout" hidden>Déconnexion</button>
+
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="btn-refresh" title="Actualiser les données" style="display:none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+        <span>Actualiser</span>
+      </button>
+      <button class="btn btn-danger" id="btn-logout" style="display:none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        <span>Déconnexion</span>
+      </button>
+    </div>
   </header>
+
   <main>
-    <section class="login" id="login-card">
-      <h2>Connexion administrateur</h2>
-      <label>Téléphone</label>
-      <input id="phone" inputmode="tel" placeholder="221770000001" />
-      <label>Mot de passe</label>
-      <input id="password" type="password" />
-      <div class="error" id="login-error"></div>
-      <button id="login-btn">Entrer dans le dashboard</button>
-    </section>
-    <section id="dashboard" hidden>
-      <div class="kpis" id="kpis"></div>
-      <div class="panel">
-        <h2>Apparence de l’application</h2>
-        <p style="margin:0 0 14px;color:var(--muted);font-size:13px;">Changez le nom et le logo visibles dans l’app et sur les pages de paiement.</p>
-        <div style="display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:start;">
-          <div>
-            <img id="brand-preview" src="/static/logo_default.png" alt="Aperçu logo" style="width:140px;height:140px;object-fit:contain;border:1px solid var(--line);border-radius:14px;background:#0b0e14;" />
+    <!-- ================================================= -->
+    <!-- 1. VUE LOGIN ADMINISTRATEUR                       -->
+    <!-- ================================================= -->
+    <section class="login-container" id="view-login">
+      <div class="login-glass-card">
+        <div class="login-header">
+          <div class="login-logo-aura">
+            <img id="login-card-logo" src="/static/logo_default.png" alt="Logo" />
           </div>
+          <h1>Portail <span>Super-Admin</span></h1>
+          <p>Console de supervision financière & anti-arnaque</p>
+        </div>
+
+        <div class="error-banner" id="login-error-banner"></div>
+
+        <div class="form-group">
+          <label class="form-label">Numéro Super-Admin (Sénégal)</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🇸🇳</span>
+            <input class="input-field" id="login-phone" type="tel" placeholder="221770000001" value="" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mot de passe secret</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input class="input-field" id="login-password" type="password" placeholder="••••••••••••" value="" />
+            <button class="input-toggle-pwd" type="button" id="toggle-pwd-btn">👁️</button>
+          </div>
+        </div>
+
+        <!-- Bouton Quick Fill pour Jury / Démo -->
+        <div class="quick-demo-pill" id="demo-fill-btn">
+          <span>⚡ Remplir identifiants Admin (Démo Jury)</span>
+          <small>1-CLIC</small>
+        </div>
+
+        <button class="btn btn-primary" id="btn-do-login" style="width:100%; justify-content:center; padding:13px; font-size:14px;">
+          <span>Déverrouiller la Console</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+
+        <div class="login-footer-trust">
+          <span>⚡ Bitnob Lightning Sandbox</span>
+          <span>•</span>
+          <span>🛡️ HMAC-SHA512 Webhooks</span>
+          <span>•</span>
+          <span>🐘 PostgreSQL</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================= -->
+    <!-- 2. VUE TABLEAU DE BORD SUPERVISEUR                -->
+    <!-- ================================================= -->
+    <section class="dashboard-view" id="view-dashboard" style="display:none;">
+
+      <!-- Grille des 4 Métriques Clés -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="--card-accent: var(--primary);">
+          <div class="kpi-top">
+            <span class="kpi-label">Comptes Marchands</span>
+            <div class="kpi-icon-box">👥</div>
+          </div>
+          <div class="kpi-value" id="kpi-total-users">--</div>
+          <div class="kpi-subtext">Portefeuilles enregistrés</div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: var(--emerald);">
+          <div class="kpi-top">
+            <span class="kpi-label">Comptes Actifs</span>
+            <div class="kpi-icon-box">🟢</div>
+          </div>
+          <div class="kpi-value" id="kpi-active-users">--</div>
+          <div class="kpi-subtext"><span style="color:var(--emerald);">100% opérationnels</span></div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: var(--gold);">
+          <div class="kpi-top">
+            <span class="kpi-label">Liquidité Réseau</span>
+            <div class="kpi-icon-box">⚡</div>
+          </div>
+          <div class="kpi-value" id="kpi-total-sats">--</div>
+          <div class="kpi-subtext" id="kpi-total-fcfa">-- FCFA</div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: var(--amber);">
+          <div class="kpi-top">
+            <span class="kpi-label">Fonds sous Séquestre</span>
+            <div class="kpi-icon-box">🔒</div>
+          </div>
+          <div class="kpi-value" id="kpi-escrow-sats">--</div>
+          <div class="kpi-subtext" id="kpi-escrow-fcfa">En attente de livraison WhatsApp</div>
+        </div>
+      </div>
+
+      <!-- Barre d'Onglets -->
+      <div class="tabs-nav">
+        <button class="tab-btn active" data-tab="tab-users">
+          <span>👥</span> Comptes & Portefeuilles
+        </button>
+        <button class="tab-btn" data-tab="tab-invoices">
+          <span>⚡</span> Factures & Séquestres
+        </button>
+        <button class="tab-btn" data-tab="tab-branding">
+          <span>🎨</span> Branding Dynamique
+        </button>
+        <button class="tab-btn" data-tab="tab-system">
+          <span>🔌</span> API & Architecture
+        </button>
+      </div>
+
+      <!-- ONGLET 1 : COMPTES & PORTEFEUILLES -->
+      <div class="panel tab-pane" id="tab-users">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>👥</span> Gestion des Comptes Marchands & Acheteurs
+          </div>
+          <div class="search-filter-box">
+            <div class="search-input-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="users-search" placeholder="Filtrer nom ou téléphone..." />
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Utilisateur</th>
+                <th>Téléphone</th>
+                <th>Rôle</th>
+                <th>Statut</th>
+                <th>Solde Disponible</th>
+                <th>Sous Séquestre</th>
+                <th>Actions Immédiates</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody">
+              <tr><td colspan="7" style="text-align:center; padding:28px;">Chargement des données...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ONGLET 2 : FACTURES & SÉQUESTRES -->
+      <div class="panel tab-pane" id="tab-invoices" style="display:none;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>⚡</span> Surveillance du Séquestre & Factures Lightning
+          </div>
+          <div class="search-filter-box">
+            <div class="search-input-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="invoices-search" placeholder="Rechercher référence..." />
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Client / Marchand</th>
+                <th>Montant</th>
+                <th>Statut Paiement</th>
+                <th>Séquestre Bilatéral</th>
+                <th>Créée le</th>
+              </tr>
+            </thead>
+            <tbody id="invoices-tbody">
+              <tr><td colspan="6" style="text-align:center; padding:28px;">Chargement des factures...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ONGLET 3 : BRANDING DYNAMIQUE -->
+      <div class="panel tab-pane" id="tab-branding" style="display:none;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🎨</span> Identité Visuelle & Personnalisation de l'App
+          </div>
+          <p style="font-size:13px; color:var(--text-muted);">
+            Les modifications sont propagées immédiatement dans l'app mobile Flutter et sur les pages de paiement web.
+          </p>
+        </div>
+
+        <div class="branding-layout">
+          <!-- Simulation Smartphone Mockup -->
           <div>
-            <label>Nom de l’application</label>
-            <input id="brand-name" placeholder="RAK TAK CASH" />
-            <label>Nouveau logo (PNG / JPG)</label>
-            <input id="brand-logo" type="file" accept="image/png,image/jpeg,image/webp" style="padding:8px;" />
-            <div class="error" id="brand-error"></div>
-            <button id="brand-save" type="button">Enregistrer nom & logo</button>
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:12px;">
+              Aperçu en Direct dans l'App Mobile
+            </div>
+            <div class="phone-mockup-frame">
+              <div class="phone-mockup-speaker"></div>
+              <div class="phone-mockup-screen">
+                <img class="mockup-logo-img" id="mockup-logo-preview" src="/static/logo_default.png" alt="Mockup Logo" />
+                <div class="mockup-app-name" id="mockup-name-preview">RAK TAK CASH</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">Fintech Lightning Dakar 2026</div>
+
+                <div class="mockup-card-solde">
+                  <div style="font-size:11px; opacity:0.8; text-transform:uppercase;">Solde Disponible</div>
+                  <div style="font-size:22px; font-weight:800; font-family:var(--font-heading); margin:4px 0;">25 000 FCFA</div>
+                  <div style="font-size:11px; opacity:0.85;">⚡ 38 461 SATS</div>
+                </div>
+
+                <div style="margin-top:auto; width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                  <div style="background:rgba(255,255,255,0.06); border-radius:10px; padding:10px; font-size:11px; font-weight:700;">
+                    ⚡ Encaisser
+                  </div>
+                  <div style="background:rgba(255,255,255,0.06); border-radius:10px; padding:10px; font-size:11px; font-weight:700;">
+                    🛡️ Séquestre
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Formulaire Édition Nom & Logo -->
+          <div>
+            <div class="form-group">
+              <label class="form-label">Nom Officiel de l'Application</label>
+              <input class="input-field" id="edit-brand-name" type="text" placeholder="RAK TAK CASH" style="padding-left:14px;" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Téléverser un Nouveau Logo (PNG / JPG / WEBP)</label>
+              <div class="upload-zone" id="upload-zone">
+                <div style="font-size:32px; margin-bottom:8px;">🖼️</div>
+                <div style="font-weight:700; margin-bottom:4px;">Glissez votre logo ici ou cliquez pour choisir</div>
+                <div style="font-size:12px; color:var(--text-muted);">Format PNG transparent recommandé (max 2,5 Mo)</div>
+                <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+              </div>
+            </div>
+
+            <div id="brand-save-error" style="color:var(--ruby); font-size:13px; margin-bottom:12px; display:none;"></div>
+
+            <button class="btn btn-gold" id="btn-save-branding" style="padding:14px 24px; font-size:14px;">
+              <span>Enregistrer & Diffuser les Changements</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
+            </button>
           </div>
         </div>
       </div>
-      <div class="panel">
-        <h2>Comptes</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Nom</th>
-              <th>Téléphone</th>
-              <th>Rôle</th>
-              <th>Statut</th>
-              <th>Disponible</th>
-              <th>Séquestre</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="users"></tbody>
-        </table>
+
+      <!-- ONGLET 4 : API & SANTÉ SYSTÈME -->
+      <div class="panel tab-pane" id="tab-system" style="display:none;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🔌</span> Architecture & Points d'Accès Techniques
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+          <div style="background:rgba(6, 14, 26, 0.6); border:1px solid var(--border-subtle); border-radius:16px; padding:18px;">
+            <div style="font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+              <span>📚 Documentation Swagger</span>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">Spécification OpenAPI interactive complète de l'API RAK TAK CASH.</p>
+            <a href="/docs" target="_blank" class="btn btn-primary" style="font-size:12px; padding:8px 14px;">Consulter Swagger /docs</a>
+          </div>
+
+          <div style="background:rgba(6, 14, 26, 0.6); border:1px solid var(--border-subtle); border-radius:16px; padding:18px;">
+            <div style="font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+              <span>⚡ Bitnob Lightning Sandbox</span>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">Génération d'invoices BOLT11 et webhooks signés HMAC-SHA512.</p>
+            <a href="/health" target="_blank" class="btn btn-ghost" style="font-size:12px; padding:8px 14px;">Test Healthcheck /health</a>
+          </div>
+
+          <div style="background:rgba(6, 14, 26, 0.6); border:1px solid var(--border-subtle); border-radius:16px; padding:18px;">
+            <div style="font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+              <span>🐘 Base de Données PostgreSQL</span>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">Tables users, wallets, ledger, invoices synchronisées sur Render Cloud.</p>
+            <span class="pill pill-active">Connecté</span>
+          </div>
+        </div>
       </div>
-      <div class="panel">
-        <h2>Factures</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Référence</th>
-              <th>Compte</th>
-              <th>Montant</th>
-              <th>Statut</th>
-              <th>Séquestre</th>
-            </tr>
-          </thead>
-          <tbody id="invoices"></tbody>
-        </table>
-      </div>
+
     </section>
   </main>
+
+  <!-- ================================================= -->
+  <!-- MODAL AJUSTEMENT SOLDE                            -->
+  <!-- ================================================= -->
+  <div class="modal-overlay" id="credit-modal">
+    <div class="modal-content">
+      <div class="modal-title">
+        <span>⚡</span> Ajuster le Solde Marchand
+      </div>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;" id="modal-user-subtitle">
+        Ajuster le solde de...
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">Montant de l'ajustement (SATS)</label>
+        <input class="input-field" id="credit-amount-input" type="number" placeholder="Ex: 1000 ou -500" style="padding-left:14px;" />
+      </div>
+
+      <div class="preset-chips">
+        <div class="preset-chip" onclick="setCreditPreset(500)">+500 sats</div>
+        <div class="preset-chip" onclick="setCreditPreset(1000)">+1 000 sats</div>
+        <div class="preset-chip" onclick="setCreditPreset(5000)">+5 000 sats</div>
+        <div class="preset-chip" onclick="setCreditPreset(10000)">+10 000 sats</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Motif de l'ajustement</label>
+        <input class="input-field" id="credit-note-input" type="text" placeholder="Ex: Démo hackathon, Bonus marchand" value="Ajustement console Super-Admin" style="padding-left:14px;" />
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button class="btn btn-ghost" onclick="closeCreditModal()">Annuler</button>
+        <button class="btn btn-primary" id="btn-confirm-credit">Confirmer l'Ajustement</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIQUE & INTERACTIVITÉ -->
   <script>
-    const tokenKey = 'raktak_admin_token';
-    let token = sessionStorage.getItem(tokenKey) || '';
-    let logoDataUrl = null;
+    const TOKEN_KEY = 'raktak_admin_token';
+    let token = sessionStorage.getItem(TOKEN_KEY) || '';
+    let currentUsers = [];
+    let currentInvoices = [];
+    let activeCreditUserId = null;
+    let uploadedLogoDataUrl = null;
 
-    const loginCard = document.getElementById('login-card');
-    const dashboard = document.getElementById('dashboard');
-    const logoutBtn = document.getElementById('logout');
-
-    function applyBranding(branding) {
-      if (!branding) return;
-      const name = branding.appName || 'RAK TAK CASH';
-      const logo = branding.logoUrl || '/static/logo_default.png';
-      const bust = logo + (logo.includes('?') ? '&' : '?') + 't=' + Date.now();
-      document.title = name + ' Admin';
-      document.getElementById('header-title').textContent = name + ' Admin';
-      document.getElementById('header-logo').src = bust;
-      document.getElementById('brand-preview').src = bust;
-      document.getElementById('brand-name').value = name;
+    // Toast helper
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+      toast.innerHTML = '<span>' + icon + '</span><span>' + message + '</span>';
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
     }
 
-    function esc(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      }[ch]));
-    }
-
-    function money(sats) {
-      const fcfa = Math.round(Number(sats || 0) * 0.65);
-      return `${Number(sats || 0).toLocaleString('fr-FR')} sats · ${fcfa.toLocaleString('fr-FR')} F`;
-    }
-
+    // Requêtes API
     async function api(path, options = {}) {
       const res = await fetch(path, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
           ...(options.headers || {}),
         },
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 || res.status === 403) {
         if (token && path !== '/auth/login') logout();
-        throw new Error(data.error || 'Accès refusé');
+        throw new Error(data.error || 'Session expirée ou non autorisée');
       }
-      if (!res.ok) throw new Error(data.error || 'Requête impossible');
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la requête');
       return data;
+    }
+
+    function formatSats(sats) {
+      return Number(sats || 0).toLocaleString('fr-FR');
+    }
+
+    function formatFcfa(sats) {
+      return Math.round(Number(sats || 0) * 0.65).toLocaleString('fr-FR') + ' F';
+    }
+
+    function applyBranding(b) {
+      if (!b) return;
+      const name = b.appName || 'RAK TAK CASH';
+      const logo = b.logoUrl || '/static/logo_default.png';
+      const bust = logo + (logo.includes('?') ? '&' : '?') + 't=' + Date.now();
+      
+      document.title = name + ' • Console Superviseur';
+      document.getElementById('nav-app-name').textContent = name;
+      document.getElementById('nav-logo').src = bust;
+      document.getElementById('login-card-logo').src = bust;
+      document.getElementById('mockup-name-preview').textContent = name;
+      document.getElementById('mockup-logo-preview').src = bust;
+      document.getElementById('edit-brand-name').value = name;
+    }
+
+    // Bascule des Vues
+    function showDashboard() {
+      document.getElementById('view-login').style.display = 'none';
+      document.getElementById('view-dashboard').style.display = 'flex';
+      document.getElementById('btn-refresh').style.display = 'inline-flex';
+      document.getElementById('btn-logout').style.display = 'inline-flex';
     }
 
     function logout() {
       token = '';
-      sessionStorage.removeItem(tokenKey);
-      loginCard.hidden = false;
-      dashboard.hidden = true;
-      logoutBtn.hidden = true;
+      sessionStorage.removeItem(TOKEN_KEY);
+      document.getElementById('view-login').style.display = 'flex';
+      document.getElementById('view-dashboard').style.display = 'none';
+      document.getElementById('btn-refresh').style.display = 'none';
+      document.getElementById('btn-logout').style.display = 'none';
+      showToast('Déconnexion réussie');
     }
 
-    function showDashboard() {
-      loginCard.hidden = true;
-      dashboard.hidden = false;
-      logoutBtn.hidden = false;
-    }
-
-    async function refresh() {
-      const [overview, users, invoices, brandingRes] = await Promise.all([
-        api('/admin/api/overview'),
-        api('/admin/api/users'),
-        api('/admin/api/invoices'),
-        api('/admin/api/branding'),
-      ]);
-      applyBranding(brandingRes.branding);
-      logoDataUrl = null;
-      document.getElementById('brand-logo').value = '';
-      const o = overview.overview;
-      document.getElementById('kpis').innerHTML = [
-        ['Comptes', o.users],
-        ['Actifs', o.active_users],
-        ['Solde total', money(o.totalBalanceSats)],
-        ['Sous séquestre', money(o.totalEscrowSats)],
-      ].map(([label, value]) => `<div class="kpi"><span>${label}</span><strong>${value}</strong></div>`).join('');
-
-      document.getElementById('users').innerHTML = users.users.map((user) => `
-        <tr>
-          <td>${esc(user.fullName || '—')}</td>
-          <td>+${esc(user.phone)}</td>
-          <td>${user.role}</td>
-          <td><span class="pill ${user.status === 'active' ? 'on' : 'off'}">${user.status === 'active' ? 'Actif' : 'Suspendu'}</span></td>
-          <td>${money(user.balanceSats)}</td>
-          <td>${money(user.escrowSats)}</td>
-          <td>
-            <div class="row-actions">
-              <button class="${user.status === 'active' ? 'warn' : 'ok'}" data-status="${user.id}" data-next="${user.status === 'active' ? 'suspended' : 'active'}">
-                ${user.status === 'active' ? 'Suspendre' : 'Réactiver'}
-              </button>
-              <input data-amount="${user.id}" type="number" placeholder="sats" />
-              <button data-credit="${user.id}">Ajuster</button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
-
-      document.getElementById('invoices').innerHTML = invoices.invoices.map((invoice) => `
-        <tr>
-          <td>${esc(invoice.reference)}</td>
-          <td>${esc(invoice.fullName || '')} +${esc(invoice.phone)}</td>
-          <td>${money(invoice.amount)}</td>
-          <td>${invoice.status}</td>
-          <td>${invoice.escrowStatus}</td>
-        </tr>
-      `).join('') || '<tr><td colspan="5">Aucune facture</td></tr>';
-    }
-
-    document.getElementById('login-btn').onclick = async () => {
-      const error = document.getElementById('login-error');
-      error.textContent = '';
+    // Chargement & Rafraîchissement des Données
+    async function refreshAll() {
+      const btnRefresh = document.getElementById('btn-refresh');
+      btnRefresh.style.opacity = '0.5';
+      btnRefresh.style.pointerEvents = 'none';
       try {
-        const data = await api('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({
-            phone: document.getElementById('phone').value,
-            password: document.getElementById('password').value,
-          }),
-        });
-        if (data.user.role !== 'admin') {
-          error.textContent = 'Ce compte n’est pas administrateur.';
-          return;
-        }
-        token = data.token;
-        sessionStorage.setItem(tokenKey, token);
-        showDashboard();
-        await refresh();
+        const [overviewRes, usersRes, invoicesRes, brandingRes] = await Promise.all([
+          api('/admin/api/overview'),
+          api('/admin/api/users'),
+          api('/admin/api/invoices'),
+          api('/admin/api/branding'),
+        ]);
+
+        applyBranding(brandingRes.branding);
+
+        // Remplir les KPIs
+        const o = overviewRes.overview || {};
+        document.getElementById('kpi-total-users').textContent = o.users ?? '--';
+        document.getElementById('kpi-active-users').textContent = o.active_users ?? '--';
+        document.getElementById('kpi-total-sats').textContent = formatSats(o.totalBalanceSats) + ' SATS';
+        document.getElementById('kpi-total-fcfa').textContent = '≈ ' + formatFcfa(o.totalBalanceSats);
+        document.getElementById('kpi-escrow-sats').textContent = formatSats(o.totalEscrowSats) + ' SATS';
+        document.getElementById('kpi-escrow-fcfa').textContent = '≈ ' + formatFcfa(o.totalEscrowSats);
+
+        // Conserver les listes pour recherche dynamique
+        currentUsers = usersRes.users || [];
+        currentInvoices = invoicesRes.invoices || [];
+
+        renderUsers(currentUsers);
+        renderInvoices(currentInvoices);
       } catch (err) {
-        error.textContent = err.message;
+        showToast(err.message, 'error');
+      } finally {
+        btnRefresh.style.opacity = '1';
+        btnRefresh.style.pointerEvents = 'auto';
+      }
+    }
+
+    function renderUsers(list) {
+      const tbody = document.getElementById('users-tbody');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Aucun compte trouvé</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(u => {
+        const initials = (u.fullName || 'User').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        const isActive = u.status === 'active';
+        return `
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">${initials}</div>
+                <div>
+                  <div class="user-meta-name">${esc(u.fullName || 'Marchand Anonyme')}</div>
+                  <div class="user-meta-phone">ID: #${u.id}</div>
+                </div>
+              </div>
+            </td>
+            <td><strong>+${esc(u.phone)}</strong></td>
+            <td>
+              <span class="pill ${u.role === 'admin' ? 'pill-admin' : ''}">${u.role === 'admin' ? 'Super-Admin' : 'Marchand'}</span>
+            </td>
+            <td>
+              <span class="pill ${isActive ? 'pill-active' : 'pill-suspended'}">
+                ${isActive ? '● Actif' : '✖ Suspendu'}
+              </span>
+            </td>
+            <td>
+              <div class="amount-highlight">${formatSats(u.balanceSats)} sats</div>
+              <div class="amount-fcfa">${formatFcfa(u.balanceSats)}</div>
+            </td>
+            <td>
+              <div class="amount-highlight" style="color:var(--amber);">${formatSats(u.escrowSats)} sats</div>
+              <div class="amount-fcfa">${formatFcfa(u.escrowSats)}</div>
+            </td>
+            <td>
+              <div style="display:flex; gap:8px;">
+                <button class="btn ${isActive ? 'btn-danger' : 'btn-success'}" style="padding:6px 10px; font-size:12px;" onclick="toggleUserStatus(${u.id}, '${isActive ? 'suspended' : 'active'}')">
+                  ${isActive ? 'Suspendre' : 'Réactiver'}
+                </button>
+                <button class="btn btn-primary" style="padding:6px 10px; font-size:12px;" onclick="openCreditModal(${u.id}, '${esc(u.fullName || u.phone)}')">
+                  ⚡ Ajuster
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderInvoices(list) {
+      const tbody = document.getElementById('invoices-tbody');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Aucune facture enregistrée</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(inv => {
+        const isEscrow = inv.escrowStatus && inv.escrowStatus !== 'none';
+        const isPaid = inv.status === 'paid';
+        return `
+          <tr>
+            <td>
+              <span class="code-ref" onclick="copyToClipboard('${inv.reference}')" title="Cliquer pour copier">${esc(inv.reference)}</span>
+            </td>
+            <td>
+              <div style="font-weight:600;">${esc(inv.fullName || 'Client')}</div>
+              <div style="font-size:11px; color:var(--text-muted);">+${esc(inv.phone || '')}</div>
+            </td>
+            <td>
+              <div class="amount-highlight">${formatSats(inv.amount)} sats</div>
+              <div class="amount-fcfa">${formatFcfa(inv.amount)}</div>
+            </td>
+            <td>
+              <span class="pill ${isPaid ? 'pill-paid' : 'pill-escrow'}">
+                ${isPaid ? 'Payée' : esc(inv.status)}
+              </span>
+            </td>
+            <td>
+              <span class="pill ${isEscrow ? 'pill-escrow' : ''}">
+                ${isEscrow ? '🔒 ' + esc(inv.escrowStatus) : 'Standard Direct'}
+              </span>
+            </td>
+            <td style="color:var(--text-muted); font-size:12px;">
+              ${inv.createdAt ? new Date(inv.createdAt).toLocaleString('fr-FR', { dateStyle:'short', timeStyle:'short' }) : '--'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function esc(val) {
+      return String(val ?? '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text);
+      showToast('Référence ' + text + ' copiée !', 'success');
+    }
+
+    // Actions utilisateurs
+    async function toggleUserStatus(userId, nextStatus) {
+      if (!confirm('Voulez-vous vraiment changer le statut de ce compte en ' + nextStatus + ' ?')) return;
+      try {
+        await api('/admin/api/users/' + userId + '/status', {
+          method: 'POST',
+          body: JSON.stringify({ status: nextStatus })
+        });
+        showToast('Statut du compte #' + userId + ' mis à jour', 'success');
+        refreshAll();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function openCreditModal(userId, name) {
+      activeCreditUserId = userId;
+      document.getElementById('modal-user-subtitle').textContent = 'Ajustement pour : ' + name;
+      document.getElementById('credit-amount-input').value = '1000';
+      document.getElementById('credit-modal').style.display = 'flex';
+    }
+
+    function closeCreditModal() {
+      document.getElementById('credit-modal').style.display = 'none';
+      activeCreditUserId = null;
+    }
+
+    function setCreditPreset(amount) {
+      document.getElementById('credit-amount-input').value = amount;
+    }
+
+    document.getElementById('btn-confirm-credit').onclick = async () => {
+      if (!activeCreditUserId) return;
+      const sats = Number(document.getElementById('credit-amount-input').value);
+      const note = document.getElementById('credit-note-input').value.trim() || 'Ajustement admin';
+      if (!sats) return alert('Indiquez un montant en SATS');
+
+      try {
+        await api('/admin/api/users/' + activeCreditUserId + '/credit', {
+          method: 'POST',
+          body: JSON.stringify({ sats, note })
+        });
+        showToast('Portefeuille crédité de ' + sats + ' sats', 'success');
+        closeCreditModal();
+        refreshAll();
+      } catch (err) {
+        showToast(err.message, 'error');
       }
     };
 
-    logoutBtn.onclick = logout;
+    // Gestion des Onglets
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tabId = btn.dataset.tab;
+        document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+        document.getElementById(tabId).style.display = 'block';
+      };
+    });
 
-    document.getElementById('brand-logo').onchange = (event) => {
-      const file = event.target.files?.[0];
-      logoDataUrl = null;
+    // Filtres Recherche
+    document.getElementById('users-search').oninput = (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = currentUsers.filter(u => 
+        (u.fullName || '').toLowerCase().includes(q) ||
+        (u.phone || '').includes(q)
+      );
+      renderUsers(filtered);
+    };
+
+    document.getElementById('invoices-search').oninput = (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = currentInvoices.filter(i => 
+        (i.reference || '').toLowerCase().includes(q) ||
+        (i.fullName || '').toLowerCase().includes(q)
+      );
+      renderInvoices(filtered);
+    };
+
+    // Upload & Branding
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('logo-file-input');
+
+    uploadZone.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => handleLogoFile(e.target.files?.[0]);
+
+    uploadZone.ondragover = (e) => { e.preventDefault(); uploadZone.style.borderColor = 'var(--primary)'; };
+    uploadZone.ondragleave = () => { uploadZone.style.borderColor = 'rgba(255,255,255,0.15)'; };
+    uploadZone.ondrop = (e) => {
+      e.preventDefault();
+      uploadZone.style.borderColor = 'rgba(255,255,255,0.15)';
+      if (e.dataTransfer.files?.[0]) handleLogoFile(e.dataTransfer.files[0]);
+    };
+
+    function handleLogoFile(file) {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        logoDataUrl = reader.result;
-        document.getElementById('brand-preview').src = logoDataUrl;
+        uploadedLogoDataUrl = reader.result;
+        document.getElementById('mockup-logo-preview').src = uploadedLogoDataUrl;
+        showToast('Logo chargé dans l\'aperçu ! N\'oubliez pas d\'enregistrer.', 'info');
       };
       reader.readAsDataURL(file);
+    }
+
+    document.getElementById('edit-brand-name').oninput = (e) => {
+      document.getElementById('mockup-name-preview').textContent = e.target.value || 'RAK TAK CASH';
     };
 
-    document.getElementById('brand-save').onclick = async () => {
-      const error = document.getElementById('brand-error');
-      error.textContent = '';
+    document.getElementById('btn-save-branding').onclick = async () => {
+      const name = document.getElementById('edit-brand-name').value.trim();
+      const errBox = document.getElementById('brand-save-error');
+      errBox.style.display = 'none';
+
       try {
-        const body = { appName: document.getElementById('brand-name').value.trim() };
-        if (logoDataUrl) body.logoDataUrl = logoDataUrl;
-        const data = await api('/admin/api/branding', { method: 'POST', body: JSON.stringify(body) });
-        applyBranding(data.branding);
-        logoDataUrl = null;
-        document.getElementById('brand-logo').value = '';
-        alert('Branding enregistré. L’app mobile le récupère au prochain lancement / refresh.');
+        const body = { appName: name };
+        if (uploadedLogoDataUrl) body.logoDataUrl = uploadedLogoDataUrl;
+        const res = await api('/admin/api/branding', {
+          method: 'POST',
+          body: JSON.stringify(body)
+        });
+        applyBranding(res.branding);
+        uploadedLogoDataUrl = null;
+        showToast('Branding RAK TAK CASH enregistré avec succès !', 'success');
       } catch (err) {
-        error.textContent = err.message;
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+        showToast(err.message, 'error');
       }
     };
 
-    document.body.addEventListener('click', async (event) => {
-      const statusBtn = event.target.closest('[data-status]');
-      const creditBtn = event.target.closest('[data-credit]');
-      try {
-        if (statusBtn) {
-          await api(`/admin/api/users/${statusBtn.dataset.status}/status`, {
-            method: 'POST',
-            body: JSON.stringify({ status: statusBtn.dataset.next }),
-          });
-          await refresh();
-        }
-        if (creditBtn) {
-          const input = document.querySelector(`[data-amount="${creditBtn.dataset.credit}"]`);
-          await api(`/admin/api/users/${creditBtn.dataset.credit}/credit`, {
-            method: 'POST',
-            body: JSON.stringify({ sats: Number(input.value), note: 'Ajustement depuis le dashboard' }),
-          });
-          await refresh();
-        }
-      } catch (err) {
-        alert(err.message);
-      }
-    });
+    // Connexion Admin
+    document.getElementById('demo-fill-btn').onclick = () => {
+      document.getElementById('login-phone').value = '221770000001';
+      document.getElementById('login-password').value = 'RakTakCashAdmin2026';
+      showToast('Identifiants Super-Admin remplis ! Cliquez sur Déverrouiller.', 'success');
+    };
 
+    document.getElementById('toggle-pwd-btn').onclick = () => {
+      const pwd = document.getElementById('login-password');
+      pwd.type = pwd.type === 'password' ? 'text' : 'password';
+    };
+
+    document.getElementById('btn-do-login').onclick = async () => {
+      const phone = document.getElementById('login-phone').value.trim();
+      const password = document.getElementById('login-password').value;
+      const errBanner = document.getElementById('login-error-banner');
+      errBanner.style.display = 'none';
+
+      try {
+        const res = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ phone, password })
+        });
+        if (res.user.role !== 'admin') {
+          throw new Error('Ce compte est un utilisateur standard, pas un administrateur.');
+        }
+        token = res.token;
+        sessionStorage.setItem(TOKEN_KEY, token);
+        showDashboard();
+        showToast('Bienvenue, ' + (res.user.fullName || 'Super-Admin') + ' !', 'success');
+        refreshAll();
+      } catch (err) {
+        errBanner.textContent = '❌ ' + err.message;
+        errBanner.style.display = 'flex';
+      }
+    };
+
+    document.getElementById('login-password').onkeydown = (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-do-login').click();
+    };
+
+    document.getElementById('btn-refresh').onclick = refreshAll;
+    document.getElementById('btn-logout').onclick = logout;
+
+    // Initialisation
     if (token) {
       showDashboard();
-      refresh().catch(() => logout());
+      refreshAll().catch(() => logout());
+    } else {
+      // Charger le branding initial
+      api('/admin/api/branding').then(res => applyBranding(res.branding)).catch(() => {});
     }
   </script>
 </body>
