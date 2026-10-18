@@ -1,11 +1,11 @@
 {
-    "name": "hackathon_mobile",
-    "short_name": "hackathon_mobile",
+    "name": "RAK TAK CASH",
+    "short_name": "RAK TAK CASH",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#0052FF",
+    "description": "RAK TAK CASH - Paiements Bitcoin Lightning & Séquestre WhatsApp pour l'Afrique de l'Ouest",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
