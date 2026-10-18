@@ -40,7 +40,7 @@ class _AuthGateState extends State<AuthGate> {
 
     // Durée minimale d'affichage du splash screen pour un rendu fluide et pro
     final elapsed = DateTime.now().difference(startTime);
-    final remaining = 1800 - elapsed.inMilliseconds;
+    final remaining = 2300 - elapsed.inMilliseconds;
     if (remaining > 0) {
       await Future.delayed(Duration(milliseconds: remaining));
     }

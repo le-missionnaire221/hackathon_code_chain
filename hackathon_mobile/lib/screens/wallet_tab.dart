@@ -58,13 +58,7 @@ class WalletTab extends StatefulWidget {
 class _WalletTabState extends State<WalletTab> {
   int _filterIndex = 0; // 0 = Tout, 1 = Confirmés, 2 = En attente / Autres
 
-  static String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
-    if (parts.isEmpty) return 'PC';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'.toUpperCase();
-  }
-
+  
   static const TextStyle _balanceStyle = TextStyle(
     fontSize: 38,
     fontWeight: FontWeight.w900,
@@ -83,9 +77,7 @@ class _WalletTabState extends State<WalletTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: RefreshIndicator(
+    return RefreshIndicator(
         onRefresh: widget.onRefresh,
         color: AppColors.primary,
         child: ListView(
@@ -107,58 +99,38 @@ class _WalletTabState extends State<WalletTab> {
             ..._buildTransactions(context),
           ],
         ),
-      ),
-    );
+      );
   }
 
-  // ───────────────────────── En-tête profil ─────────────────────────
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            gradient: AppColors.avatarGradient,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4)),
-            ],
+  // ─── En-tête profil ─────────────────────────
+    Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Bonjour 👋',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
           ),
-          child: Text(
-            _initials(widget.accountName),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+          const SizedBox(height: 4),
+          Text(
+            widget.accountName.isNotEmpty ? widget.accountName : 'Marchand',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.6,
+              color: AppColors.sapphire,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Bonjour',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.accountName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        StatusPill(
-          label: widget.isBackendOnline ? 'En ligne' : 'Hors ligne',
-          tone: widget.isBackendOnline ? PillTone.success : PillTone.error,
-          showDot: true,
-        ),
-      ],
+        ],
+      ),
     );
   }
 

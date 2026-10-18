@@ -188,6 +188,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
+        toolbarHeight: 68,
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu_rounded, color: AppColors.sapphire, size: 28),
@@ -197,11 +198,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         ),
         title: Image.asset(
           'assets/logo_final.png',
-          height: 38,
+          height: 48,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Image.asset(
             BrandingService.localLogoAsset,
-            height: 38,
+            height: 48,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => Text(
               BrandingService.appName,

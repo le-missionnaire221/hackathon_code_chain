@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/services/branding_service.dart';
@@ -10,32 +11,76 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scaleAnimation;
+  late final AnimationController _dropController;
+  late final Animation<Offset> _dropAnimation;
   late final Animation<double> _fadeAnimation;
+
+  Timer? _typewriterTimer;
+  String _displayedText = '';
+  final String _targetText = BrandingService.appName.isNotEmpty ? BrandingService.appName : 'RAK TAK CASH';
+  bool _showSubtitle = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    // 1. Animation du logo qui tombe du haut avec rebond réaliste
+    _dropController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 900),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    _dropAnimation = Tween<Offset>(
+      begin: const Offset(0, -3.5), // Tombe depuis le haut
+      end: Offset.zero,             // Atterrit au centre
+    ).animate(
+      CurvedAnimation(
+        parent: _dropController,
+        curve: Curves.bounceOut,    // Rebondissement à l'arrivée
+      ),
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+      CurvedAnimation(
+        parent: _dropController,
+        curve: const Interval(0.0, 0.4, curve: Curves.easeIn),
+      ),
     );
 
-    _controller.forward();
+    _dropController.forward();
+
+    // 2. Déclenchement de l'affichage lettre par lettre rapide
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      _startTypewriter();
+    });
+  }
+
+  void _startTypewriter() {
+    int index = 0;
+    _typewriterTimer = Timer.periodic(const Duration(milliseconds: 55), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (index < _targetText.length) {
+        index++;
+        setState(() {
+          _displayedText = _targetText.substring(0, index);
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          _showSubtitle = true;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _dropController.dispose();
+    _typewriterTimer?.cancel();
     super.dispose();
   }
 
@@ -50,79 +95,92 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             children: [
               const Spacer(flex: 3),
 
-              // Logo animé au centre
-              AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  return Opacity(
-                    opacity: _fadeAnimation.value,
-                    child: Transform.scale(
-                      scale: _scaleAnimation.value,
-                      child: child,
-                    ),
-                  );
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      'assets/logo_final.png',
-                      height: 110,
+              // Logo qui tombe avec rebond
+              SlideTransition(
+                position: _dropAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Image.asset(
+                    'assets/logo_final.png',
+                    height: 125,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      BrandingService.localLogoAsset,
+                      height: 125,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Image.asset(
-                        BrandingService.localLogoAsset,
-                        height: 110,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.account_balance_wallet_rounded,
-                          size: 72,
-                          color: AppColors.primary,
-                        ),
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        size: 80,
+                        color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      BrandingService.appName,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                        color: AppColors.sapphire,
-                      ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 22),
+
+              // Nom affiché lettre par lettre de façon rapide
+              SizedBox(
+                height: 40,
+                child: Center(
+                  child: Text(
+                    _displayedText,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: AppColors.sapphire,
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Paiements Lightning & Séquestre WhatsApp',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Sous-titre en fondu doux
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 350),
+                opacity: _showSubtitle ? 1.0 : 0.0,
+                child: const Text(
+                  'Paiements Lightning & Séquestre WhatsApp',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
 
               const Spacer(flex: 2),
 
-              // Indicateur de chargement discret en bas
-              SizedBox(
-                width: 38,
-                height: 38,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              // Spinner discret en bas
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 350),
+                opacity: _showSubtitle ? 1.0 : 0.0,
+                child: const SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
-              const Text(
-                '⚡ Propulsé par Lightning Network • Dakar 2026',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 350),
+                opacity: _showSubtitle ? 1.0 : 0.0,
+                child: const Text(
+                  '⚡ Dakar 2026',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
 
