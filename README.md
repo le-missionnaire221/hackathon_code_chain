@@ -14,11 +14,13 @@ Application Flutter + API Node.js / Express + PostgreSQL, branchée sur **Bitnob
 | Parcours | Description |
 | --- | --- |
 | **Comptes** | Inscription / connexion (nom, téléphone, mot de passe). Session conservée. Chaque compte a son portefeuille. |
-| **Encaisser sur place** | Montant en FCFA → facture Lightning Bitnob → QR. Le client paie avec PayChain, Blink, Phoenix, etc. |
+| **Encaisser sur place** | Montant en FCFA → facture Lightning Bitnob → QR. Le client paie avec RAK TAK CASH, Blink, Phoenix, etc. |
 | **Livraison (séquestre)** | Même facture, mais l’argent est gardé. Le client reçoit un code à 4 caractères ; le marchand le saisit à la remise du colis pour débloquer le solde. |
-| **Lien de paiement** | `/pay/{référence}` partageable (WhatsApp, SMS, e-mail…). Sur PC : QR Lightning. Sur téléphone : bouton Payer (ouvre PayChain s’il est installé, sinon choix de portefeuille). |
-| **Admin** | Dashboard pour comptes, soldes, ajustements. |
-| **Docs API** | Swagger UI. |
+| **Recevoir / Scanner** | QR adresse `…@raktak.cash` pour envoyer entre comptes app ; scan facture ou adresse. |
+| **Lien de paiement** | `/pay/{référence}` partageable. Sur PC : QR Lightning. Sur téléphone : PayChain deep link ou autre wallet. |
+| **Profil** | Identité, solde, adresse Recevoir, connexion. |
+| **Admin** | Comptes, soldes, **nom + logo** de l’app. |
+| **Docs API** | Swagger UI (`/` redirige vers `/docs`). |
 
 Taux affiché dans l’app : **1 sat ≈ 0,65 FCFA**.
 
