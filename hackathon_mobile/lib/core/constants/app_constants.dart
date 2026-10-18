@@ -9,7 +9,7 @@
 
   // Branding par défaut (surchagé via /branding + admin)
   static const String defaultAppName = 'RAK TAK CASH';
-  static const String defaultLogoAsset = 'assets/logo_rak_tak_cash.jpg';
+  static const String defaultLogoAsset = 'assets/logo_rak_tak_cash.png';
 
   // Informations développeur & hackathon
   static const String developerName = 'Idrissa Coulibaly';

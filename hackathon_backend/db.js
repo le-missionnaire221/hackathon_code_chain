@@ -155,15 +155,21 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS app_branding (
       id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
       app_name TEXT NOT NULL DEFAULT 'RAK TAK CASH',
-      logo_file TEXT NOT NULL DEFAULT 'logo_default.jpg',
+      logo_file TEXT NOT NULL DEFAULT 'logo_default.png',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 
   await pool.query(
     `INSERT INTO app_branding (id, app_name, logo_file)
-     VALUES (1, 'RAK TAK CASH', 'logo_default.jpg')
+     VALUES (1, 'RAK TAK CASH', 'logo_default.png')
      ON CONFLICT (id) DO NOTHING`
+  );
+  // Si une ancienne install pointe encore vers le .jpg, basculer vers le PNG fourni
+  await pool.query(
+    `UPDATE app_branding
+     SET logo_file = 'logo_default.png', updated_at = now()
+     WHERE id = 1 AND (logo_file = 'logo_default.jpg' OR logo_file IS NULL OR logo_file = '')`
   );
 
   const phone = normalizePhone(process.env.ADMIN_PHONE || '221770000001');
@@ -312,11 +318,11 @@ export function paychainAddressForPhone(phone) {
 
 export async function getAppBranding() {
   const { rows } = await pool.query('SELECT app_name, logo_file, updated_at FROM app_branding WHERE id = 1');
-  const row = rows[0] || { app_name: 'RAK TAK CASH', logo_file: 'logo_default.jpg' };
+  const row = rows[0] || { app_name: 'RAK TAK CASH', logo_file: 'logo_default.png' };
   return {
     appName: row.app_name || 'RAK TAK CASH',
-    logoFile: row.logo_file || 'logo_default.jpg',
-    logoUrl: `/static/${row.logo_file || 'logo_default.jpg'}`,
+    logoFile: row.logo_file || 'logo_default.png',
+    logoUrl: `/static/${row.logo_file || 'logo_default.png'}`,
     updatedAt: row.updated_at || null,
   };
 }

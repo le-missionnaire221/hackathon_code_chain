@@ -92,7 +92,7 @@
 <body>
   <header>
     <div style="display:flex;align-items:center;gap:14px;">
-      <img id="header-logo" src="/static/logo_default.jpg" alt="Logo" style="height:42px;width:auto;border-radius:8px;background:#fff;padding:2px;" />
+      <img id="header-logo" src="/static/logo_default.png" alt="Logo" style="height:42px;width:auto;border-radius:8px;background:#fff;padding:2px;" />
       <div>
         <h1 id="header-title">RAK TAK CASH Admin</h1>
         <p id="subtitle">Contrôle des comptes, portefeuilles et branding</p>
@@ -117,7 +117,7 @@
         <p style="margin:0 0 14px;color:var(--muted);font-size:13px;">Changez le nom et le logo visibles dans l’app et sur les pages de paiement.</p>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:start;">
           <div>
-            <img id="brand-preview" src="/static/logo_default.jpg" alt="Aperçu logo" style="width:140px;height:140px;object-fit:contain;border:1px solid var(--line);border-radius:14px;background:#0b0e14;" />
+            <img id="brand-preview" src="/static/logo_default.png" alt="Aperçu logo" style="width:140px;height:140px;object-fit:contain;border:1px solid var(--line);border-radius:14px;background:#0b0e14;" />
           </div>
           <div>
             <label>Nom de l’application</label>
@@ -175,7 +175,7 @@
     function applyBranding(branding) {
       if (!branding) return;
       const name = branding.appName || 'RAK TAK CASH';
-      const logo = branding.logoUrl || '/static/logo_default.jpg';
+      const logo = branding.logoUrl || '/static/logo_default.png';
       const bust = logo + (logo.includes('?') ? '&' : '?') + 't=' + Date.now();
       document.title = name + ' Admin';
       document.getElementById('header-title').textContent = name + ' Admin';

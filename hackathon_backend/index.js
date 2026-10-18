@@ -376,7 +376,7 @@ app.post('/invoice/:reference/pay', requireAuth, async (req, res) => {
 // === PAGE WEB DE PAIEMENT SÉCURISÉ (ADAPTATIVE MOBILE & PC) ===
 app.get('/pay/:reference', async (req, res) => {
   const { reference } = req.params;
-  const branding = await getAppBranding().catch(() => ({ appName: 'RAK TAK CASH', logoUrl: '/static/logo_default.jpg' }));
+  const branding = await getAppBranding().catch(() => ({ appName: 'RAK TAK CASH', logoUrl: '/static/logo_default.png' }));
   const brandName = branding.appName || 'RAK TAK CASH';
   let invoice = await getInvoice(reference);
   if (invoice) {
