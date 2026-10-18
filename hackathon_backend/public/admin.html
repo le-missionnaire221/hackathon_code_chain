@@ -685,39 +685,34 @@
   <div class="toast-box" id="toast-box"></div>
 
   <!-- ================================================= -->
-  <!-- 1. VUE CONNEXION SIMPLE & BLANCHE (COMME MOBILE)  -->
+  <!-- 1. VUE CONNEXION SIMPLE & BLANCHE (MODE PRODUCTION) -->
   <!-- ================================================= -->
   <div class="login-wrapper" id="login-screen">
     <div class="login-card">
       <img class="login-logo" id="login-logo-img" src="/static/logo_default.png" alt="Logo" />
       <div class="login-title" id="login-app-title">RAK TAK CASH</div>
-      <div class="login-subtitle">Console d'Administration & Supervision</div>
+      <div class="login-subtitle">Connectez-vous à votre compte</div>
 
       <div class="error-box" id="login-error"></div>
 
       <div class="form-group">
-        <label class="form-label">Numéro Super-Admin</label>
-        <div class="input-box">
-          <input class="input-field" id="login-phone" type="tel" placeholder="221770000001" />
+        <label class="form-label">Numéro de téléphone</label>
+        <div class="input-box" style="display:flex; align-items:center;">
+          <span style="background:#F1F5F9; border:1px solid var(--border); border-right:0; border-radius:12px 0 0 12px; padding:13px 14px; font-weight:700; color:var(--sapphire); font-size:14px; user-select:none;">+221</span>
+          <input class="input-field" id="login-phone" type="tel" placeholder="77 000 00 00" style="border-radius:0 12px 12px 0;" />
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Mot de passe secret</label>
+        <label class="form-label">Mot de passe</label>
         <div class="input-box">
           <input class="input-field" id="login-password" type="password" placeholder="••••••••••••" />
           <button class="input-toggle-eye" type="button" id="toggle-pwd-btn">👁️</button>
         </div>
       </div>
 
-      <!-- Accès Démo Rapide 1-Clic -->
-      <div class="demo-chip-btn" id="login-demo-btn">
-        <span>⚡ Remplir identifiants Admin (Démo Jury)</span>
-        <small>1-CLIC</small>
-      </div>
-
-      <button class="btn-submit" id="login-submit-btn">
-        <span>Se connecter au Dashboard</span>
+      <button class="btn-submit" id="login-submit-btn" style="margin-top:10px;">
+        <span>Se connecter</span>
       </button>
     </div>
   </div>
@@ -1136,7 +1131,7 @@
       const logo = b.logoUrl || '/static/logo_default.png';
       const bust = logo + (logo.includes('?') ? '&' : '?') + 't=' + Date.now();
 
-      document.title = name + ' • Admin';
+      document.title = token ? (name + ' • Dashboard') : name;
       document.getElementById('login-logo-img').src = bust;
       document.getElementById('sidebar-logo-img').src = bust;
       document.getElementById('mockup-logo-img').src = bust;
@@ -1412,39 +1407,51 @@
       }
     };
 
-    // Login
-    document.getElementById('login-demo-btn').onclick = () => {
-      document.getElementById('login-phone').value = '221770000001';
-      document.getElementById('login-password').value = 'RakTakCashAdmin2026';
-      toast('Identifiants remplis ! Cliquez sur Se connecter.', 'success');
-    };
-
+    // Login (Mode Production)
     document.getElementById('toggle-pwd-btn').onclick = () => {
       const pwd = document.getElementById('login-password');
       pwd.type = pwd.type === 'password' ? 'text' : 'password';
     };
 
     document.getElementById('login-submit-btn').onclick = async () => {
-      const phone = document.getElementById('login-phone').value.trim();
+      const rawPhone = document.getElementById('login-phone').value.trim();
+      let digits = rawPhone.replace(/\D/g, '');
+      if (digits.length === 9) {
+        digits = '221' + digits; // Ajout automatique du 221
+      } else if (!digits.startsWith('221') && digits.length > 0) {
+        digits = '221' + digits;
+      }
+
       const password = document.getElementById('login-password').value;
       const errBox = document.getElementById('login-error');
       errBox.style.display = 'none';
 
+      if (!digits || digits.length < 9) {
+        errBox.textContent = '❌ Veuillez saisir un numéro de téléphone valide.';
+        errBox.style.display = 'block';
+        return;
+      }
+      if (!password) {
+        errBox.textContent = '❌ Veuillez saisir votre mot de passe.';
+        errBox.style.display = 'block';
+        return;
+      }
+
       try {
         const res = await api('/auth/login', {
           method: 'POST',
-          body: JSON.stringify({ phone, password })
+          body: JSON.stringify({ phone: digits, password })
         });
         if (res.user.role !== 'admin') {
-          throw new Error("Ce compte n'est pas un administrateur.");
+          throw new Error("Identifiants incorrects ou accès non autorisé.");
         }
         token = res.token;
         sessionStorage.setItem(TOKEN_KEY, token);
         showDashboard();
-        toast('Bienvenue dans la console Super-Admin !', 'success');
+        toast('Connexion réussie', 'success');
         refreshData();
       } catch (err) {
-        errBox.textContent = '❌ ' + err.message;
+        errBox.textContent = '❌ ' + (err.message || 'Connexion impossible');
         errBox.style.display = 'block';
       }
     };
