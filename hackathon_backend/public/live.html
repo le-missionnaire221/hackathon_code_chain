@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAK TAK CASH — Démo live</title>
+  <link rel="icon" href="/static/logo_default.png" />
+  <style>
+    :root {
+      --blue: #0052FF;
+      --blue-dark: #003BB5;
+      --navy: #0A2540;
+      --yellow: #FFD166;
+      --bg: #F8FAFC;
+      --text: #0F172A;
+      --muted: #64748B;
+      --card: #fff;
+      --line: #E2E8F0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #dbe7ff 0%, transparent 55%),
+                  radial-gradient(900px 500px at 100% 0%, #fff3c4 0%, transparent 45%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 36px 20px 64px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .brand img {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      border-radius: 14px;
+      background: #0b0e14;
+      padding: 4px;
+    }
+    h1 {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    .slogan {
+      margin-top: 6px;
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 22px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    }
+    .card h2 {
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .card p {
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    a.btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      font-weight: 800;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 1rem;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      color: #fff;
+    }
+    .btn-yellow {
+      background: var(--yellow);
+      color: var(--navy);
+    }
+    .btn-ghost {
+      background: #EEF4FF;
+      color: var(--blue);
+      border: 1px solid #cfe0ff;
+    }
+    .steps {
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+    .steps li { margin: 6px 0; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ECFDF5;
+      color: #059669;
+      font-weight: 700;
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+    .pill.offline { background: #FEF2F2; color: #DC2626; }
+    footer {
+      margin-top: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    code {
+      background: #F1F5F9;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.85em;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img id="logo" src="/static/logo_default.png" alt="RAK TAK CASH" />
+      <div>
+        <h1 id="app-name">RAK TAK CASH</h1>
+        <div class="slogan">Encaisse. Envoie. En confiance.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="pill" id="status-pill">● Vérification du serveur…</div>
+      <h2>Lien live — Code & Chain Dakar 2026</h2>
+      <p>
+        Application de paiements Lightning pour commerçants : encaisser en boutique,
+        vendre à distance avec séquestre, recevoir et envoyer entre comptes.
+      </p>
+      <div class="actions">
+        <a class="btn btn-primary" id="apk-btn" href="__APK_URL__" download="RAK-TAK-CASH.apk">
+          Télécharger l’APK Android
+        </a>
+        <a class="btn btn-yellow" href="/docs">Voir l’API (Swagger)</a>
+        <a class="btn btn-ghost" href="/admin">Dashboard admin</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Installer sur téléphone (Android)</h2>
+      <ol class="steps">
+        <li>Télécharge l’APK avec le bouton bleu.</li>
+        <li>Autorise l’installation depuis des sources inconnues si demandé.</li>
+        <li>Ouvre <strong>RAK TAK CASH</strong>, crée un compte (téléphone + mot de passe).</li>
+        <li>L’app pointe déjà vers l’API en ligne (Render).</li>
+      </ol>
+      <p style="margin-top:12px;">iPhone : pas d’APK — utilisez la démo sur un Android, ou demandez une démo live à l’équipe.</p>
+    </div>
+
+    <div class="card">
+      <h2>Liens utiles</h2>
+      <p>
+        Santé API : <a href="/health"><code>/health</code></a><br />
+        Page paiement exemple : <code>/pay/{référence}</code> (créée depuis Encaisser)<br />
+        Repo : <a href="https://github.com/le-missionnaire221/hackathon_code_chain" target="_blank" rel="noopener">GitHub</a>
+      </p>
+    </div>
+
+    <footer>
+      RAK TAK CASH · Encaisse. Envoie. En confiance.<br />
+      Code & Chain Dakar 2026
+    </footer>
+  </div>
+  <script>
+    async function boot() {
+      try {
+        const [health, branding] = await Promise.all([
+          fetch('/health').then((r) => r.json()).catch(() => null),
+          fetch('/branding').then((r) => r.json()).catch(() => null),
+        ]);
+        const pill = document.getElementById('status-pill');
+        if (health && health.status === 'OK') {
+          pill.textContent = '● API en ligne';
+          pill.classList.remove('offline');
+        } else {
+          pill.textContent = '● API hors ligne / en réveil';
+          pill.classList.add('offline');
+        }
+        if (branding && branding.appName) {
+          document.getElementById('app-name').textContent = branding.appName;
+          document.title = branding.appName + ' — Démo live';
+        }
+        if (branding && branding.logoUrl) {
+          document.getElementById('logo').src = branding.logoUrl + '?t=' + Date.now();
+        }
+      } catch (_) {}
+    }
+    boot();
+  </script>
+</body>
+</html>

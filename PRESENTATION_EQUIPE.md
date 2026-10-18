@@ -31,9 +31,10 @@ Paiements Lightning pour les commerçants du Sénégal et d’Afrique de l’Oue
 | **Logo** | Bleu + jaune (éclair + flèche) — fichier : `hackathon_mobile/assets/logo_rak_tak_cash.png` |
 | **Développeur** | Idrissa Coulibaly (@le-missionnaire221) |
 | **Événement** | Code & Chain Dakar 2026 |
-| **API démo** | https://hackathon-code-chain.onrender.com |
+| **Lien live (jury)** | **https://hackathon-code-chain.onrender.com/** |
+| **Install APK** | Bouton sur la page live (ou lien Drive si configuré) |
 | **Admin** | https://hackathon-code-chain.onrender.com/admin |
-| **Docs** | https://hackathon-code-chain.onrender.com/docs |
+| **Docs API** | https://hackathon-code-chain.onrender.com/docs |
 
 ---
 

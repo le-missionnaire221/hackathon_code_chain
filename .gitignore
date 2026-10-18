@@ -13,6 +13,10 @@ scratch/
 *.tmp
 *.log
 
+# APK (trop lourd pour git — héberger Drive / GitHub Release + APK_DOWNLOAD_URL)
+**/*.apk
+hackathon_backend/public/downloads/*.apk
+
 # Flutter / Dart
 **/build/
 **/.dart_tool/

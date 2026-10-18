@@ -1,6 +1,7 @@
 import './env.js';
 import express from 'express';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bitnob } from './bitnob.js';
@@ -70,10 +71,25 @@ app.get('/branding', async (req, res) => {
   }
 });
 
-// Racine → documentation Swagger
-app.get('/', (req, res) => {
-  res.redirect(302, '/docs');
-});
+// Racine → page live (install APK + liens démo). Swagger reste sur /docs
+function sendLivePage(req, res) {
+  const file = path.join(__dirname, 'public', 'live.html');
+  const localApk = path.join(__dirname, 'public', 'downloads', 'app-release.apk');
+  const apkUrl = process.env.APK_DOWNLOAD_URL
+    || (fs.existsSync(localApk) ? '/static/downloads/app-release.apk' : '');
+  let html = fs.readFileSync(file, 'utf8');
+  if (apkUrl) {
+    html = html.replaceAll('__APK_URL__', apkUrl);
+  } else {
+    html = html.replace(
+      /<a class="btn btn-primary" id="apk-btn"[\s\S]*?<\/a>/,
+      `<a class="btn btn-primary" id="apk-btn" href="/docs" style="opacity:.85">APK bientôt — voir l’API en attendant</a>`
+    );
+  }
+  res.type('html').send(html);
+}
+app.get('/', sendLivePage);
+app.get('/live', sendLivePage);
 
 // === ROUTE DE SANTÉ (HEALTHCHECK RÉEL) ===
 app.get('/health', async (req, res) => {
