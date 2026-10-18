@@ -322,6 +322,96 @@
       font-size: 13px;
     }
 
+    
+    /* Vector SVG Icons */
+    .nav-tab-btn .nav-icon {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .nav-tab-btn .nav-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .kpi-icon {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .kpi-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .panel-title-icon {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--primary);
+    }
+    .panel-title-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .btn-refresh svg {
+      flex-shrink: 0;
+      transition: transform 0.4s ease;
+    }
+    .btn-refresh:hover svg {
+      transform: rotate(180deg);
+    }
+    .btn-logout-mini {
+      background: transparent;
+      border: 0;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .btn-logout-mini:hover { color: var(--ruby); background: var(--ruby-light); }
+    .input-toggle-eye {
+      position: absolute;
+      right: 12px;
+      background: transparent;
+      border: 0;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 4px;
+      transition: color 0.15s ease;
+    }
+    .input-toggle-eye:hover { color: var(--primary); }
+
     .btn-logout-mini {
       background: transparent;
       border: 0;
@@ -707,7 +797,7 @@
         <label class="form-label">Mot de passe</label>
         <div class="input-box">
           <input class="input-field" id="login-password" type="password" placeholder="••••••••••••" />
-          <button class="input-toggle-eye" type="button" id="toggle-pwd-btn">👁️</button>
+          <button class="input-toggle-eye" type="button" id="toggle-pwd-btn" aria-label="Afficher ou masquer mot de passe"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
         </div>
       </div>
 
@@ -733,23 +823,23 @@
 
       <nav class="sidebar-nav">
         <button class="nav-tab-btn active" data-tab="tab-overview">
-          <span class="nav-icon">📊</span>
+          <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg></span>
           <span>Vue d'ensemble</span>
         </button>
         <button class="nav-tab-btn" data-tab="tab-users">
-          <span class="nav-icon">👥</span>
+          <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
           <span>Utilisateurs & Comptes</span>
         </button>
         <button class="nav-tab-btn" data-tab="tab-invoices">
-          <span class="nav-icon">⚡</span>
+          <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
           <span>Factures & Séquestres</span>
         </button>
         <button class="nav-tab-btn" data-tab="tab-branding">
-          <span class="nav-icon">🎨</span>
+          <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg></span>
           <span>Apparence & Logo</span>
         </button>
         <button class="nav-tab-btn" data-tab="tab-system">
-          <span class="nav-icon">🔌</span>
+          <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg></span>
           <span>API & Architecture</span>
         </button>
       </nav>
@@ -763,7 +853,7 @@
               <div style="font-size:11px; color:var(--text-secondary);" id="sidebar-admin-phone">+221...</div>
             </div>
           </div>
-          <button class="btn-logout-mini" id="btn-logout" title="Déconnexion">🚪</button>
+          <button class="btn-logout-mini" id="btn-logout" title="Déconnexion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button>
         </div>
       </div>
     </aside>
@@ -779,7 +869,7 @@
             <span>Réseau Lightning & PostgreSQL En Ligne</span>
           </div>
           <button class="btn-refresh" id="btn-refresh">
-            <span>🔄 Actualiser</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path></svg><span>Actualiser</span>
           </button>
         </div>
       </header>
@@ -804,7 +894,7 @@
             <div class="kpi-tile" style="--kpi-color: var(--primary);">
               <div class="kpi-tile-label">
                 <span>Total Utilisateurs</span>
-                <span>👥</span>
+                <span class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
               </div>
               <div class="kpi-tile-value" id="sum-total-users">--</div>
               <div class="kpi-tile-sub">
@@ -816,7 +906,7 @@
             <div class="kpi-tile" style="--kpi-color: var(--emerald);">
               <div class="kpi-tile-label">
                 <span>Comptes Actifs</span>
-                <span>🟢</span>
+                <span class="kpi-icon" style="color:var(--emerald);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></span>
               </div>
               <div class="kpi-tile-value" id="sum-active-users">--</div>
               <div class="kpi-tile-sub" style="color:#059669;">
@@ -827,7 +917,7 @@
             <div class="kpi-tile" style="--kpi-color: #0A2540;">
               <div class="kpi-tile-label">
                 <span>Liquidité en Circulation</span>
-                <span>⚡</span>
+                <span class="kpi-icon" style="color:#0A2540;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
               </div>
               <div class="kpi-tile-value" id="sum-total-sats">-- sats</div>
               <div class="kpi-tile-sub" id="sum-total-fcfa" style="font-weight:700;">-- FCFA</div>
@@ -836,7 +926,7 @@
             <div class="kpi-tile" style="--kpi-color: var(--amber);">
               <div class="kpi-tile-label">
                 <span>Fonds sous Séquestre</span>
-                <span>🔒</span>
+                <span class="kpi-icon" style="color:var(--amber);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></span>
               </div>
               <div class="kpi-tile-value" id="sum-escrow-sats" style="color:#B45309;">-- sats</div>
               <div class="kpi-tile-sub" id="sum-escrow-fcfa">En transit sécurisé WhatsApp</div>
@@ -845,7 +935,7 @@
             <div class="kpi-tile" style="--kpi-color: #6366F1;">
               <div class="kpi-tile-label">
                 <span>Factures Générées</span>
-                <span>🧾</span>
+                <span class="kpi-icon" style="color:#6366F1;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
               </div>
               <div class="kpi-tile-value" id="sum-total-invoices">--</div>
               <div class="kpi-tile-sub">Commandes TPE & distance</div>
@@ -853,8 +943,8 @@
 
             <div class="kpi-tile" style="--kpi-color: var(--emerald);">
               <div class="kpi-tile-label">
-                <span>Factures Régalées</span>
-                <span>✅</span>
+                <span>Factures Réglées</span>
+                <span class="kpi-icon" style="color:var(--emerald);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
               </div>
               <div class="kpi-tile-value" id="sum-paid-invoices" style="color:#059669;">--</div>
               <div class="kpi-tile-sub" id="sum-success-rate">Taux de règlement : --%</div>
@@ -866,7 +956,7 @@
             <!-- Dernières Transactions -->
             <div class="card-panel" style="margin-bottom:0;">
               <div class="panel-header">
-                <div class="panel-title"><span>⚡</span> Dernières Factures Émises</div>
+                <div class="panel-title"><span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span><span>Dernières Factures Émises</span></div>
                 <button class="btn-action-small btn-action-primary" onclick="switchTab('tab-invoices')">Voir tout</button>
               </div>
               <div class="table-responsive">
@@ -888,7 +978,7 @@
             <!-- Derniers Utilisateurs -->
             <div class="card-panel" style="margin-bottom:0;">
               <div class="panel-header">
-                <div class="panel-title"><span>👥</span> Derniers Comptes Inscrits</div>
+                <div class="panel-title"><span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span><span>Derniers Comptes Inscrits</span></div>
                 <button class="btn-action-small btn-action-primary" onclick="switchTab('tab-users')">Voir tout</button>
               </div>
               <div class="table-responsive">
@@ -915,7 +1005,7 @@
         <section class="tab-section" id="tab-users">
           <div class="card-panel">
             <div class="panel-header">
-              <div class="panel-title"><span>👥</span> Gestion des Comptes & Portefeuilles</div>
+              <div class="panel-title"><span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span><span>Gestion des Comptes & Portefeuilles</span></div>
               <input class="search-input" id="search-users" type="text" placeholder="Rechercher nom ou téléphone..." />
             </div>
 
@@ -946,7 +1036,7 @@
         <section class="tab-section" id="tab-invoices">
           <div class="card-panel">
             <div class="panel-header">
-              <div class="panel-title"><span>⚡</span> Factures Lightning & Séquestres Bilatéraux</div>
+              <div class="panel-title"><span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span><span>Factures Lightning & Séquestres Bilatéraux</span></div>
               <input class="search-input" id="search-invoices" type="text" placeholder="Rechercher référence..." />
             </div>
 
@@ -976,7 +1066,7 @@
         <section class="tab-section" id="tab-branding">
           <div class="card-panel">
             <div class="panel-header">
-              <div class="panel-title"><span>🎨</span> Identité Visuelle & Logo de l'Application</div>
+              <div class="panel-title"><span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg></span><span>Identité Visuelle & Logo de l'Application</span></div>
               <p style="font-size:13px; color:var(--text-secondary);">
                 Modifiez le nom et le logo diffusés instantanément dans l'app mobile et sur les reçus de paiement.
               </p>
@@ -993,7 +1083,7 @@
                 <div style="background:linear-gradient(135deg, #0052FF, #0A2540); border-radius:14px; padding:16px; color:#fff; text-align:left; margin-bottom:14px;">
                   <div style="font-size:10px; opacity:0.8; text-transform:uppercase;">Solde Disponible</div>
                   <div style="font-size:20px; font-weight:800; font-family:var(--font-heading); margin:3px 0;">25 000 FCFA</div>
-                  <div style="font-size:10px; opacity:0.85;">⚡ 38 461 SATS</div>
+                  <div style="font-size:10px; opacity:0.85; display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg><span>38 461 SATS</span></div>
                 </div>
               </div>
 
@@ -1024,24 +1114,24 @@
         <section class="tab-section" id="tab-system">
           <div class="card-panel">
             <div class="panel-header">
-              <div class="panel-title"><span>🔌</span> Architecture & Documentation Technique</div>
+              <div class="panel-title"><span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg></span><span>Architecture & Documentation Technique</span></div>
             </div>
 
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:18px;">
               <div style="background:#F8FAFC; border:1px solid var(--border); border-radius:14px; padding:18px;">
-                <div style="font-weight:800; color:var(--sapphire); margin-bottom:6px;">📚 Swagger OpenAPI Docs</div>
+                <div style="font-weight:800; color:var(--sapphire); margin-bottom:6px; display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg><span>Swagger OpenAPI Docs</span></div>
                 <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">Documentation interactive des 14 endpoints REST.</p>
                 <a href="/docs" target="_blank" class="btn-action-small btn-action-primary" style="text-decoration:none; display:inline-block;">Ouvrir /docs</a>
               </div>
 
               <div style="background:#F8FAFC; border:1px solid var(--border); border-radius:14px; padding:18px;">
-                <div style="font-weight:800; color:var(--sapphire); margin-bottom:6px;">⚡ Bitnob Sandbox Lightning</div>
+                <div style="font-weight:800; color:var(--sapphire); margin-bottom:6px; display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg><span>Bitnob Sandbox Lightning</span></div>
                 <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">Génération d'invoices BOLT11 et webhooks HMAC-SHA512.</p>
                 <a href="/health" target="_blank" class="btn-action-small btn-action-primary" style="text-decoration:none; display:inline-block;">Tester /health</a>
               </div>
 
               <div style="background:#F8FAFC; border:1px solid var(--border); border-radius:14px; padding:18px;">
-                <div style="font-weight:800; color:var(--sapphire); margin-bottom:6px;">🐘 PostgreSQL Database</div>
+                <div style="font-weight:800; color:var(--sapphire); margin-bottom:6px; display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg><span>PostgreSQL Database</span></div>
                 <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">Persistance sur Render Cloud avec pool de connexions actif.</p>
                 <span class="pill-badge pill-active">Connecté</span>
               </div>
@@ -1057,7 +1147,7 @@
   <div class="modal-backdrop" id="credit-modal">
     <div class="modal-dialog">
       <div style="font-family:var(--font-heading); font-size:18px; font-weight:800; color:var(--sapphire); margin-bottom:6px;">
-        ⚡ Ajuster le Solde
+        <span class="panel-title-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span><span>Ajuster le Solde Utilisateur</span>
       </div>
       <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;" id="modal-user-label">Ajustement...</p>
 
@@ -1098,7 +1188,15 @@
       const box = document.getElementById('toast-box');
       const item = document.createElement('div');
       item.className = 'toast-item';
-      item.innerHTML = '<span>' + (type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️') + '</span><span>' + msg + '</span>';
+      let icon = '';
+      if (type === 'success') {
+        icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      } else if (type === 'error') {
+        icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+      } else {
+        icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0052FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+      }
+      item.innerHTML = '<span style="display:inline-flex; align-items:center;">' + icon + '</span><span>' + msg + '</span>';
       box.appendChild(item);
       setTimeout(() => item.remove(), 3500);
     }
@@ -1276,7 +1374,7 @@
                   ${isActive ? 'Suspendre' : 'Activer'}
                 </button>
                 <button class="btn-action-small btn-action-primary" onclick="openCredit(${u.id}, '${esc(u.fullName || u.phone)}')">
-                  ⚡ Ajuster
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg><span>Ajuster</span>
                 </button>
               </div>
             </td>
@@ -1295,11 +1393,11 @@
         const isEscrow = i.escrowStatus && i.escrowStatus !== 'none';
         return `
           <tr>
-            <td><strong style="cursor:pointer;" onclick="copyText('${i.reference}')" title="Cliquer pour copier">${esc(i.reference)} 📋</strong></td>
+            <td><strong style="cursor:pointer;" onclick="copyText('${i.reference}')" title="Cliquer pour copier">${esc(i.reference)} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></strong></td>
             <td>${esc(i.fullName || '')} (+${esc(i.phone)})</td>
             <td><strong>${formatNumber(i.amount)}</strong> sats</td>
             <td><span class="pill-badge ${i.status === 'paid' ? 'pill-paid' : 'pill-escrow'}">${esc(i.status)}</span></td>
-            <td>${isEscrow ? '<span class="pill-badge pill-escrow">🔒 ' + esc(i.escrowStatus) + '</span>' : 'Standard'}</td>
+            <td>${isEscrow ? '<span class="pill-badge pill-escrow"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> ' + esc(i.escrowStatus) + '</span>' : 'Standard'}</td>
             <td style="color:var(--text-secondary); font-size:12px;">${i.createdAt ? new Date(i.createdAt).toLocaleString('fr-FR', { dateStyle:'short', timeStyle:'short' }) : '--'}</td>
           </tr>
         `;
@@ -1408,10 +1506,23 @@
     };
 
     // Login (Mode Production)
+    const eyeOpenSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    const eyeClosedSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
     document.getElementById('toggle-pwd-btn').onclick = () => {
       const pwd = document.getElementById('login-password');
-      pwd.type = pwd.type === 'password' ? 'text' : 'password';
+      const isPwd = pwd.type === 'password';
+      pwd.type = isPwd ? 'text' : 'password';
+      document.getElementById('toggle-pwd-btn').innerHTML = isPwd ? eyeClosedSvg : eyeOpenSvg;
     };
+
+    function showLoginError(msg) {
+      const errBox = document.getElementById('login-error');
+      errBox.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>' + msg + '</span>';
+      errBox.style.display = 'flex';
+      errBox.style.alignItems = 'center';
+      errBox.style.gap = '8px';
+    }
 
     document.getElementById('login-submit-btn').onclick = async () => {
       const rawPhone = document.getElementById('login-phone').value.trim();
@@ -1427,12 +1538,12 @@
       errBox.style.display = 'none';
 
       if (!digits || digits.length < 9) {
-        errBox.textContent = '❌ Veuillez saisir un numéro de téléphone valide.';
+        showLoginError('Veuillez saisir un numéro de téléphone valide.');
         errBox.style.display = 'block';
         return;
       }
       if (!password) {
-        errBox.textContent = '❌ Veuillez saisir votre mot de passe.';
+        showLoginError('Veuillez saisir votre mot de passe.');
         errBox.style.display = 'block';
         return;
       }
@@ -1451,7 +1562,7 @@
         toast('Connexion réussie', 'success');
         refreshData();
       } catch (err) {
-        errBox.textContent = '❌ ' + (err.message || 'Connexion impossible');
+        showLoginError(err.message || 'Identifiants incorrects ou accès non autorisé.');
         errBox.style.display = 'block';
       }
     };
