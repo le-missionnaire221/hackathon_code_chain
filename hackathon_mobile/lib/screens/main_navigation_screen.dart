@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/constants/app_colors.dart';
@@ -20,9 +21,10 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   String backendUrl = AppConstants.productionBackendUrl;
+  Timer? _walletPollTimer;
 
   bool _isBalanceVisible = true;
   bool _isLoadingWallet = false;
@@ -42,18 +44,37 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchRealWalletData();
     _testBackendPing();
+    _walletPollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || _currentIndex != 0) return;
+      _fetchRealWalletData(silent: true);
+    });
   }
 
-  Future<void> _fetchRealWalletData() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _walletPollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchRealWalletData(silent: true);
+    }
+  }
+
+  Future<void> _fetchRealWalletData({bool silent = false}) async {
     if (_isLoadingWallet) return;
-    setState(() => _isLoadingWallet = true);
+    if (!silent) setState(() => _isLoadingWallet = true);
     final wallet = await ApiService.getWalletData(backendUrl);
     if (!mounted) return;
 
     setState(() {
-      _isLoadingWallet = false;
+      if (!silent) _isLoadingWallet = false;
       if (wallet != null) {
         _balanceSats = wallet.balanceSats;
         _balanceFcfa = wallet.balanceFcfa;
@@ -65,6 +86,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         _totalInvoicesCount = wallet.totalInvoices;
         _transactions = wallet.transactions;
         _isBackendOnline = true;
+      } else if (!silent) {
+        _isLoadingWallet = false;
       }
     });
   }

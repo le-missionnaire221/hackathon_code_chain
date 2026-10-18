@@ -295,7 +295,12 @@ class _WalletTabState extends State<WalletTab> {
                   child: _QuickAction(
                     icon: Icons.qr_code_2_rounded,
                     label: 'Recevoir',
-                    onTap: () => BlinkAddressSheet.show(context),
+                          onTap: () => BlinkAddressSheet.show(
+                            context,
+                            backendUrl: widget.backendUrl,
+                            currentBalanceSats: widget.balanceSats,
+                            onReceived: widget.onRefresh,
+                          ),
                   ),
                 ),
                 Expanded(
