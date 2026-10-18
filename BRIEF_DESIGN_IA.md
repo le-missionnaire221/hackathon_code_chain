@@ -11,7 +11,8 @@ Document à coller / transmettre à une IA de design (UI, logo variants, landing
 |--------|--------|
 | **Nom officiel** | **RAK TAK CASH** |
 | **Ancien nom** | PayChain Dakar (ne plus utiliser dans les maquettes) |
-| **Tagline possible** | Paiements Lightning pour commerçants au Sénégal et en Afrique de l’Ouest |
+| **Slogan officiel** | **Encaisse. Envoie. En confiance.** |
+| **Accroche** | Paiements Lightning pour commerçants au Sénégal et en Afrique de l’Ouest |
 | **Logo actuel** | `hackathon_mobile/assets/logo_rak_tak_cash.png` (aussi `Logo Rak Tak Cash bleu et jaune.png`) |
 | **Palette logo** | Bleu (foncé → vif) + **jaune** (flèche / mot CASH) · fond sombre possible pour lockup |
 | **Développeur** | Idrissa Coulibaly · @le-missionnaire221 |
