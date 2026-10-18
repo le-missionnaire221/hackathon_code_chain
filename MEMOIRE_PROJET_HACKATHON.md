@@ -452,6 +452,21 @@ Pour aller encore plus loin lors des prochaines itérations :
   - **Tableaux & Badges :** Bouton `Ajuster` avec icône éclair vectorielle, icône de copie interactive 📋 remplacée par un SVG de presse-papier, badge de statut sous séquestre avec cadenas vectoriel.
   - **Toasts & Messages d'Erreur :** Notifications avec SVG check vert, alerte rouge et info bleu au lieu d'émojis textuels.
 
+
+## 13. Icônes d'Accueil Téléphone, Splash Natif & Identité Visuelle Système (18 Octobre 2026)
+
+### 📲 1. Logo & Nom sur l'Écran d'Accueil du Téléphone (Launcher Icon)
+* **Génération Haute Définition :** À partir du logo officiel `assets/logo_final.png` (1254x1254), toutes les résolutions d'icônes ont été générées et déployées pour que l'icône de l'app apparaisse sur le bureau / écran d'accueil du téléphone avant ouverture :
+  - **Android (`mipmap-*`) :** `mipmap-mdpi` (48px), `mipmap-hdpi` (72px), `mipmap-xhdpi` (96px), `mipmap-xxhdpi` (144px), `mipmap-xxxhdpi` (192px).
+  - **iOS (`AppIcon.appiconset`) :** 15 formats Retina & App Store (de 20x20 à 1024x1024 RGB sans canal alpha).
+  - **Web PWA & Chrome Mobile :** `favicon.png` (64x64), `Icon-192.png`, `Icon-512.png` et variantes `Icon-maskable` avec marge de sécurité Android de 20%.
+* **Nom de l'App sur l'Accueil :** `RAK TAK CASH` configuré dans `AndroidManifest.xml` (`android:label`), iOS `Info.plist` (`CFBundleDisplayName`), et le manifeste PWA `web/manifest.json`.
+
+### ⚡ 2. Écran de Lancement Natif Instantané (Launch Splash Screen)
+* **Affichage Instantané au Clic :** Avant même le démarrage du moteur Flutter (`avant de l'ouvrir`), le système d'exploitation affiche instantanément l'écran de lancement natif :
+  - Intégration de `launch_image.png` dans `android/app/src/main/res/drawable/launch_background.xml` et `drawable-v21/launch_background.xml`.
+  - Logo officiel centré sur fond blanc pur (`@android:color/white`), offrant une transition visuelle parfaite et continue vers le splash animé Flutter.
+
 ---
 *Document certifié conforme pour le Hackathon Code & Chain Dakar 2026.*  
 *Auteurs : Idrissa Coulibaly (@le-missionnaire221) & Antigravity IDE.*
